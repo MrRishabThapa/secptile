@@ -10,6 +10,7 @@ import { WAKE_GREETING, detectWakePhrase } from "@/lib/wake";
 import { phaseSchema, type Draft } from "@/lib/schema";
 
 type Step = "input" | "questions" | "draft";
+type PublishResult = { file: string; commitHash: string | null; pushed: boolean; pushError: string | null };
 
 /** Shape of /api/journal's success body — re-validated client-side. */
 const apiBodySchema = phaseSchema.extend({ sessionId: z.string().min(1) });
@@ -25,6 +26,8 @@ export default function Home() {
   const [transcript, setTranscript] = useState("");
   const [greeting, setGreeting] = useState<string | null>(null);
   const [approved, setApproved] = useState(false);
+  const [publishBusy, setPublishBusy] = useState(false);
+  const [publishResult, setPublishResult] = useState<PublishResult | null>(null);
 
   async function callApi(body: Record<string, unknown>) {
     setBusy(true);
@@ -107,6 +110,34 @@ export default function Home() {
     if (woke) setGreeting(WAKE_GREETING);
   }
 
+  async function publish() {
+    if (!draft) return;
+    setPublishBusy(true);
+    setError(null);
+    setPublishResult(null);
+    try {
+      const response = await fetch("/api/publish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: draft.title, body: draft.body, tags: draft.tags, approved: true }),
+      });
+      const json: unknown = await response.json();
+      if (!response.ok) {
+        const message =
+          typeof json === "object" && json !== null && "error" in json
+            ? String((json as { error: unknown }).error)
+            : `Publish failed (${response.status})`;
+        throw new Error(message);
+      }
+      const result = json as PublishResult;
+      setPublishResult(result);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Publishing failed.");
+    } finally {
+      setPublishBusy(false);
+    }
+  }
+
   function restart() {
     setStep("input");
     setSessionId(null);
@@ -174,7 +205,24 @@ export default function Home() {
 
       {step === "draft" && draft && !busy && (
         <>
-          {approved && (
+          {publishResult && (
+            <div
+              role="status"
+              className="rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-300"
+            >
+              Published to the portfolio:{" "}
+              <code className="font-mono">{publishResult.file}</code>{" "}
+              (commit{" "}
+              <code className="font-mono">{publishResult.commitHash ?? "?"}</code>
+              {publishResult.pushed
+                ? ", pushed ✅"
+                : publishResult.pushError
+                  ? `, not pushed — ${publishResult.pushError} (run git push in the portfolio repo)`
+                  : ""}
+              ). LinkedIn sharing arrives in Phase 5.
+            </div>
+          )}
+          {approved && !publishResult && (
             <div
               role="status"
               className="rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-300"
@@ -192,6 +240,8 @@ export default function Home() {
               onApprove={() => setApproved(true)}
               onWithdrawApproval={() => setApproved(false)}
               onRegenerate={regenerate}
+              onPublish={approved ? publish : undefined}
+              publishBusy={publishBusy}
             />
             <LinkedInPreview body={draft.body} tags={draft.tags} />
           </div>
