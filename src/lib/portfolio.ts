@@ -27,6 +27,8 @@ export const publishInputSchema = z.object({
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .optional(),
+  /** Links the publish to this day's history record, when known. */
+  sessionId: z.string().min(1).optional(),
 });
 
 export type PublishInput = z.infer<typeof publishInputSchema>;
