@@ -38,6 +38,7 @@ function resumeIfOAuthReturn(): {
   draft: Draft | null;
   approved: boolean;
   transcript: string;
+  sessionId: string | null;
   oauthConnected: boolean;
   oauthMessage: string | null;
 } {
@@ -47,6 +48,7 @@ function resumeIfOAuthReturn(): {
       draft: null,
       approved: false,
       transcript: "",
+      sessionId: null,
       oauthConnected: false,
       oauthMessage: null,
     };
@@ -58,6 +60,7 @@ function resumeIfOAuthReturn(): {
       draft: null,
       approved: false,
       transcript: "",
+      sessionId: null,
       oauthConnected: false,
       oauthMessage: null,
     };
@@ -73,6 +76,7 @@ function resumeIfOAuthReturn(): {
     draft: resume?.draft ?? null,
     approved: resume?.approved ?? false,
     transcript: resume?.transcript ?? "",
+    sessionId: resume?.sessionId ?? null,
     oauthConnected: connected,
     oauthMessage: connected
       ? "LinkedIn connected ✓"
@@ -86,7 +90,7 @@ export default function Home() {
   const [step, setStep] = useState<Step>(initialState.step);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(initialState.sessionId);
   const [questions, setQuestions] = useState<string[]>([]);
   const [draft, setDraft] = useState<Draft | null>(initialState.draft);
   const [transcript, setTranscript] = useState(initialState.transcript);
@@ -346,6 +350,7 @@ export default function Home() {
             A few questions to complete the story:
           </p>
           <QuestionsStep
+            key={sessionId ?? "questions"}
             questions={questions}
             busy={busy}
             onSubmit={sendAnswers}
@@ -384,6 +389,7 @@ export default function Home() {
           )}
           <div className="grid w-full grid-cols-1 items-start gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
             <DraftEditor
+              key={sessionId ?? "draft"}
               draft={draft}
               approved={approved}
               busy={busy}
@@ -401,7 +407,8 @@ export default function Home() {
                 approved={approved}
                 statusKey={statusKey}
                 onConnect={() =>
-                  draft && saveLinkedInResume({ draft, approved, transcript })
+                  draft &&
+                  saveLinkedInResume({ sessionId, draft, approved, transcript })
                 }
                 sessionId={sessionId}
               />
