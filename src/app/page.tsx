@@ -97,30 +97,83 @@ export default function Home() {
   /** Bumped after a successful OAuth return so the share panel re-checks. */
   const [statusKey] = useState(initialState.oauthConnected ? 1 : 0);
 
+  /** Streaming feedback line while OpenCode thinks (6–20s). */
+  const [progress, setProgress] = useState<string | null>(null);
+
+  /** Streaming variant: NDJSON lines — progress ping(s), then the phase. */
   async function callApi(body: Record<string, unknown>) {
     setBusy(true);
     setError(null);
+    setProgress(null);
     try {
-      const response = await fetch("/api/journal", {
+      const response = await fetch("/api/journal/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      const json: unknown = await response.json();
       if (!response.ok) {
+        // Pre-flight validation errors arrive as plain JSON.
+        const json: unknown = await response.json().catch(() => null);
         const message =
           typeof json === "object" && json !== null && "error" in json
             ? String((json as { error: unknown }).error)
             : `Request failed (${response.status})`;
         throw new Error(message);
       }
-      const parsed = apiBodySchema.safeParse(json);
-      if (!parsed.success) {
-        throw new Error("The journal response was malformed. Try again.");
+      if (!response.body) throw new Error("The server stopped streaming early.");
+
+      const reader = response.body
+        .pipeThrough(new TextDecoderStream())
+        .getReader();
+      let buffer = "";
+      let phase: ApiBody | null = null;
+      while (phase === null) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += value;
+        let index: number;
+        while ((index = buffer.indexOf("\n")) !== -1 && phase === null) {
+          const line = buffer.slice(0, index).trim();
+          buffer = buffer.slice(index + 1);
+          if (!line) continue;
+          const event: unknown = JSON.parse(line);
+          if (
+            typeof event === "object" &&
+            event !== null &&
+            "type" in event &&
+            (event as { type: unknown }).type === "progress"
+          ) {
+            const message = (event as { type: unknown; message?: unknown }).message;
+            setProgress(typeof message === "string" ? message : null);
+            continue;
+          }
+          if (
+            typeof event === "object" &&
+            event !== null &&
+            "type" in event &&
+            (event as { type: unknown }).type === "error"
+          ) {
+            let message = "The journal response was malformed. Try again.";
+            if (typeof event === "object" && event !== null) {
+              const err = (event as { error?: unknown }).error;
+              if (typeof err === "string") message = err;
+            }
+            throw new Error(message);
+          }
+          // Final phase line — validate exactly like /api/journal did.
+          const candidate = apiBodySchema.safeParse(event);
+          if (!candidate.success) {
+            throw new Error("The journal response was malformed. Try again.");
+          }
+          phase = candidate.data;
+        }
       }
-      return parsed.data;
+      reader.releaseLock();
+      if (!phase) throw new Error("The journal response was malformed. Try again.");
+      return phase;
     } finally {
       setBusy(false);
+      setProgress(null);
     }
   }
 
@@ -264,6 +317,16 @@ export default function Home() {
         >
           {error}
         </div>
+      )}
+
+      {progress && (
+        <p role="status" aria-live="polite" className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
+          <span
+            aria-hidden
+            className="h-2 w-2 animate-pulse rounded-full bg-zinc-400 dark:bg-zinc-600"
+          />
+          {progress}
+        </p>
       )}
 
       {step === "input" && !busy && (
