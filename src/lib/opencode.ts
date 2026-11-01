@@ -25,6 +25,8 @@ export type JournalInput = {
   privateNotes?: string;
   /** Answers to the previous questions, in the same order. */
   answers?: string[];
+  /** Owner's correction/feedback to regenerate the draft with. */
+  note?: string;
 };
 
 const PROMPT_RULES = [
@@ -70,6 +72,13 @@ function buildRunArgs(input: JournalInput): string[] {
       "Answers to your questions:",
       answers.map((answer, i) => `${i + 1}. ${answer}`).join("\n"),
       "Continue: ask remaining questions, or produce the draft if the story is complete.",
+    );
+  }
+  if (input.note?.trim()) {
+    sections.push(
+      "I reviewed the draft and want changes. Regenerate the draft in light of this note from me (private direction):",
+      input.note.trim(),
+      "If the note leaves gaps you need filled to write the story, ask; otherwise produce the final draft now.",
     );
   }
 
