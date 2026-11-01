@@ -4,6 +4,7 @@ import { useState } from "react";
 import { z } from "zod";
 import { TranscriptForm } from "@/components/transcript-form";
 import { QuestionsStep } from "@/components/questions-step";
+import { PastDays } from "@/components/past-days";
 import { DraftEditor } from "@/components/draft-editor";
 import { LinkedInPreview } from "@/components/linkedin-preview";
 import {
@@ -186,7 +187,13 @@ export default function Home() {
       const response = await fetch("/api/publish", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: draft.title, body: draft.body, tags: draft.tags, approved: true }),
+        body: JSON.stringify({
+          title: draft.title,
+          body: draft.body,
+          tags: draft.tags,
+          approved: true,
+          sessionId: sessionId ?? undefined,
+        }),
       });
       const json: unknown = await response.json();
       if (!response.ok) {
@@ -333,6 +340,7 @@ export default function Home() {
                 onConnect={() =>
                   draft && saveLinkedInResume({ draft, approved, transcript })
                 }
+                sessionId={sessionId}
               />
             </div>
           </div>
@@ -346,6 +354,8 @@ export default function Home() {
           </button>
         </>
       )}
+
+      <PastDays />
     </main>
   );
 }
