@@ -9,7 +9,7 @@ import {
 } from "@/lib/linkedin-text";
 
 type Status = { configured: boolean; connected: boolean; expiresAt: string | null };
-type Resume = { draft: Draft; approved: boolean; transcript: string };
+type Resume = { sessionId: string | null; draft: Draft; approved: boolean; transcript: string };
 
 const RESUME_KEY = "secptile:resume";
 
