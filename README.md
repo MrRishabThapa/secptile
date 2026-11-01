@@ -8,8 +8,8 @@ A personal voice journal that turns "here's how my day went" into a polished blo
 2. 🧠 The transcript is sent to OpenCode (`opencode run`, JSON-only prompt, strict zod gate).
 3. ❓ OpenCode asks clarifying questions until the day's story is complete.
 4. 📝 It drafts a blog-style post (what was done, what else, lessons).
-5. 👀 You review it, edit or regenerate, and approve (Phase 3).
-6. 🚀 Only after approval: MDX post → portfolio repo → commit & push, and a LinkedIn post via the official API.
+5. 👀 You review it in an editor beside a LinkedIn-style preview, edit or regenerate with a note, and **approve**.
+6. 🚀 Only after explicit approval: MDX post → portfolio repo (`content/posts/YYYY-MM-DD-slug.mdx`, commit, best-effort push) → and a LinkedIn post via the official API (Phase 5).
 
 ## Tech stack
 
@@ -53,17 +53,22 @@ OpenCode environment (in `.env.local`):
 - `OPENCODE_SERVER_URL` — optional: attach runs to a headless server instead of the default background service
 - `OPENCODE_BIN`, `OPENCODE_TIMEOUT_MS` — optional overrides
 
+Publishing environment (in `.env.local`):
+
+- `PORTFOLIO_REPO_PATH` — local clone of your portfolio repo (e.g. `/home/rishab/Projects/portfolio/next-portfolio`)
+- `PORTFOLIO_POSTS_DIR` — optional, posts directory inside the repo (default `content/posts`)
+
 ## Project status
 
-| Phase | Scope                        | Status            |
-| ----- | ---------------------------- | ----------------- |
-| 0     | Scaffold                     | ✅                |
-| 1     | Text-only journal loop       | ✅ current        |
-| 2     | Voice input (local Whisper)  | ⬜ next           |
-| 3     | Draft editor + approval      | ⬜                |
-| 4     | Portfolio publishing (MDX)   | ⬜                |
-| 5     | LinkedIn publishing (OAuth)  | ⬜                |
-| 6     | Polish & streaming           | ⬜                |
+| Phase | Scope                        | Status                              |
+| ----- | ---------------------------- | ----------------------------------- |
+| 0     | Scaffold                     | ✅                                  |
+| 1     | Text-only journal loop       | ✅                                  |
+| 2     | Voice input (local Whisper)  | ✅ code · ⏳ STT live verify pending |
+| 3     | Draft editor + approval      | ✅                                  |
+| 4     | Portfolio publishing (MDX)   | ✅ current                          |
+| 5     | LinkedIn publishing (OAuth)  | ⬜ next                             |
+| 6     | Polish & streaming           | ⬜                                  |
 
 See [AGENTS.md](./AGENTS.md) for the project rules, phase plan, and conventions.
 
