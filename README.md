@@ -1,28 +1,28 @@
 # Secptile 🦎
 
-A personal voice journal that turns "here's how my day went" into a polished blog post — drafted by [OpenCode](https://opencode.ai) running headless on the same machine, reviewed and approved by you, then published to your portfolio and LinkedIn **only after explicit approval**.
+A personal voice journal that turns "here's how my day went" into a polished blog post — drafted by [OpenCode](https://opencode.ai) running on the same machine, reviewed and approved by you, then published to your portfolio and LinkedIn **only after explicit approval**.
 
 ## How it works
 
 1. 🎙️ Speak a summary of your day (voice or text).
-2. 🧠 The transcript is rephrased and sent to a local headless OpenCode server.
+2. 🧠 The transcript is sent to OpenCode (`opencode run`, JSON-only prompt, strict zod gate).
 3. ❓ OpenCode asks clarifying questions until the day's story is complete.
 4. 📝 It drafts a blog-style post (what was done, what else, lessons).
-5. 👀 You review it in an editor with a LinkedIn preview, edit or regenerate, and approve.
+5. 👀 You review it, edit or regenerate, and approve (Phase 3).
 6. 🚀 Only after approval: MDX post → portfolio repo → commit & push, and a LinkedIn post via the official API.
 
 ## Tech stack
 
-- **Next.js** (App Router) + React + TypeScript (strict)
+- **Next.js 16** (App Router, Turbopack) + React 19 + TypeScript (strict)
 - **Tailwind CSS** v4
 - **zod** validation on every structured model response and API body
-- **OpenCode** in headless server mode (`opencode serve`) via its SDK
-- **whisper.cpp / faster-whisper** locally for speech-to-text
+- **OpenCode** via the `opencode` CLI (`opencode run --format json`), session continued with `--session <id>` for the clarifying loop. Intended path is the official SDK once its v2 client matches `opencode serve` v2; verified mismatch in Nov 2026 and went with the CLI (see git history).
+- **whisper.cpp / faster-whisper** locally for speech-to-text (Phase 2)
 - **pnpm** for package management
 
 ## Getting started
 
-Prerequisites: Node LTS, [pnpm](https://pnpm.io), and a local OpenCode server.
+Prerequisites: Node LTS, [pnpm](https://pnpm.io), and `opencode` ≥ 2.0 on PATH (`mise use -g opencode`).
 
 ```bash
 # install dependencies
@@ -30,9 +30,6 @@ pnpm install
 
 # configure environment (then edit the values)
 cp .env.example .env.local
-
-# start the local OpenCode headless server (default port 4096)
-opencode serve --port 4096
 
 # run the dev server
 pnpm dev
@@ -46,16 +43,23 @@ Useful scripts:
 pnpm dev     # start dev server
 pnpm build   # production build
 pnpm start   # run the production build
-pnpm lint    # eslint (next/core-web-vitals + typescript)
+pnpm lint    # eslint (next/core-web-vitals + ts)
 ```
+
+OpenCode environment (in `.env.local`):
+
+- `OPENCODE_MODEL` — provider/model used for drafting (e.g. `opencode/big-pickle`)
+- `OPENCODE_WORKSPACE_DIR` — isolated dir for journal sessions (**not** your repos; OpenCode agents have tool access inside it). Defaults to `~/.secptile/workspace`.
+- `OPENCODE_SERVER_URL` — optional: attach runs to a headless server instead of the default background service
+- `OPENCODE_BIN`, `OPENCODE_TIMEOUT_MS` — optional overrides
 
 ## Project status
 
 | Phase | Scope                        | Status            |
 | ----- | ---------------------------- | ----------------- |
-| 0     | Scaffold                     | ✅ current        |
-| 1     | Text-only journal loop       | ⬜ next           |
-| 2     | Voice input (local Whisper)  | ⬜                |
+| 0     | Scaffold                     | ✅                |
+| 1     | Text-only journal loop       | ✅ current        |
+| 2     | Voice input (local Whisper)  | ⬜ next           |
 | 3     | Draft editor + approval      | ⬜                |
 | 4     | Portfolio publishing (MDX)   | ⬜                |
 | 5     | LinkedIn publishing (OAuth)  | ⬜                |
