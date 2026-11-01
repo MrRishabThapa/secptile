@@ -4,7 +4,8 @@ import { useState } from "react";
 import { z } from "zod";
 import { TranscriptForm } from "@/components/transcript-form";
 import { QuestionsStep } from "@/components/questions-step";
-import { DraftView } from "@/components/draft-view";
+import { DraftEditor } from "@/components/draft-editor";
+import { LinkedInPreview } from "@/components/linkedin-preview";
 import { WAKE_GREETING, detectWakePhrase } from "@/lib/wake";
 import { phaseSchema, type Draft } from "@/lib/schema";
 
@@ -23,6 +24,7 @@ export default function Home() {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [transcript, setTranscript] = useState("");
   const [greeting, setGreeting] = useState<string | null>(null);
+  const [approved, setApproved] = useState(false);
 
   async function callApi(body: Record<string, unknown>) {
     setBusy(true);
@@ -54,6 +56,7 @@ export default function Home() {
   function applyPhase(data: ApiBody) {
     if (data.status === "ready" && data.draft) {
       setDraft(data.draft);
+      setApproved(false); // a fresh draft must be approved again
       setStep("draft");
     } else {
       setQuestions(data.questions);
@@ -84,6 +87,16 @@ export default function Home() {
     }
   }
 
+  async function regenerate(note: string) {
+    if (!sessionId) return;
+    try {
+      const data = await callApi({ sessionId, note });
+      applyPhase(data);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Something went wrong.");
+    }
+  }
+
   /**
    * Wake-phrase check after every transcription (AGENTS.md §9): when the
    * transcript starts the session, greet and keep any extra speech.
@@ -101,11 +114,12 @@ export default function Home() {
     setDraft(null);
     setTranscript("");
     setGreeting(null);
+    setApproved(false);
     setError(null);
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-6 py-10 font-sans">
+    <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 px-6 py-10 font-sans">
       <header className="flex flex-col gap-1">
         <h1 className="text-3xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
           Secptile
@@ -134,16 +148,18 @@ export default function Home() {
       )}
 
       {step === "input" && !busy && (
-        <TranscriptForm
-          busy={busy}
-          transcript={transcript}
-          onTranscriptChange={handleTranscript}
-          onSubmit={startJournal}
-        />
+        <div className="max-w-2xl">
+          <TranscriptForm
+            busy={busy}
+            transcript={transcript}
+            onTranscriptChange={handleTranscript}
+            onSubmit={startJournal}
+          />
+        </div>
       )}
 
       {step === "questions" && !busy && (
-        <>
+        <div className="max-w-2xl">
           <p className="text-sm text-zinc-600 dark:text-zinc-300">
             A few questions to complete the story:
           </p>
@@ -153,10 +169,42 @@ export default function Home() {
             onSubmit={sendAnswers}
             onRestart={restart}
           />
-        </>
+        </div>
       )}
 
-      {step === "draft" && draft && !busy && <DraftView draft={draft} onRestart={restart} />}
+      {step === "draft" && draft && !busy && (
+        <>
+          {approved && (
+            <div
+              role="status"
+              className="rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-300"
+            >
+              Approved. Publishing to the portfolio (Phase 4) and LinkedIn (Phase 5) happens
+              only after — and always gated by — this approval. Nothing has been posted.
+            </div>
+          )}
+          <div className="grid w-full grid-cols-1 items-start gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
+            <DraftEditor
+              draft={draft}
+              approved={approved}
+              busy={busy}
+              onSave={setDraft}
+              onApprove={() => setApproved(true)}
+              onWithdrawApproval={() => setApproved(false)}
+              onRegenerate={regenerate}
+            />
+            <LinkedInPreview body={draft.body} tags={draft.tags} />
+          </div>
+
+          <button
+            type="button"
+            onClick={restart}
+            className="w-fit text-xs text-zinc-500 underline underline-offset-2 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300"
+          >
+            Start over
+          </button>
+        </>
+      )}
     </main>
   );
 }
