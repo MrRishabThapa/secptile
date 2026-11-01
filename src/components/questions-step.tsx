@@ -14,7 +14,9 @@ export function QuestionsStep({ questions, busy, onSubmit, onRestart }: Props) {
     questions.map(() => ""),
   );
 
-  const allAnswered = answers.every((answer) => answer.trim().length > 0);
+  const allAnswered = answers.every(
+    (answer) => typeof answer === "string" && answer.trim().length > 0,
+  );
   const canSend = allAnswered && !busy;
 
   return (
@@ -33,7 +35,7 @@ export function QuestionsStep({ questions, busy, onSubmit, onRestart }: Props) {
               {question}
             </span>
             <textarea
-              value={answers[index]}
+              value={answers[index] ?? ""}
               onChange={(event) => {
                 const next = [...answers];
                 next[index] = event.target.value;
