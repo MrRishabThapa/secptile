@@ -13,6 +13,9 @@ type Props = {
   onApprove: () => void;
   onWithdrawApproval: () => void;
   onRegenerate: (note: string) => void;
+  /** Present only after an approval; publishing is the next explicit act. */
+  onPublish?: () => void;
+  publishBusy?: boolean;
 };
 
 const inputClass =
@@ -26,12 +29,15 @@ export function DraftEditor({
   onApprove,
   onWithdrawApproval,
   onRegenerate,
+  onPublish,
+  publishBusy = false,
 }: Props) {
   const [title, setTitle] = useState(draft.title);
   const [body, setBody] = useState(draft.body);
   const [tagsText, setTagsText] = useState(draft.tags.join(", "));
   const [showNote, setShowNote] = useState(false);
   const [note, setNote] = useState("");
+  const [publishArmed, setPublishArmed] = useState(false);
 
   const dirty =
     title !== draft.title || body !== draft.body ||
@@ -115,6 +121,29 @@ export function DraftEditor({
             title={dirty ? "Save your edits first, then approve." : "Approve this draft"}
           >
             Approve
+          </button>
+        )}
+
+        {approved && onPublish && (
+          <button
+            type="button"
+            onClick={() => {
+              if (publishArmed) {
+                setPublishArmed(false);
+                onPublish();
+              } else {
+                setPublishArmed(true);
+                window.setTimeout(() => setPublishArmed(false), 6000);
+              }
+            }}
+            disabled={busy || publishBusy || dirty}
+            className={`rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+              publishArmed
+                ? "bg-red-700 hover:bg-red-600"
+                : "bg-indigo-700 hover:bg-indigo-600 dark:bg-indigo-600 dark:hover:bg-indigo-500"
+            }`}
+          >
+            {publishBusy ? "Publishing…" : publishArmed ? "Confirm publish to portfolio" : "Publish to portfolio"}
           </button>
         )}
 
