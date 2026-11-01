@@ -12,9 +12,18 @@ export const bodySchema = z
     privateNotes: z.string().max(20_000).optional(),
     /** Answers to the previous questions, in the same order. */
     answers: z.array(z.string().min(1)).min(1).max(10).optional(),
+    /** Owner's correction/feedback for regenerating the draft. */
+    note: z.string().min(1).max(2_000).optional(),
   })
-  .refine((b) => (b.transcript?.length ?? 0) > 0 || (b.answers?.length ?? 0) > 0, {
-    message: "Provide either a transcript or answers to continue the loop.",
+  .refine(
+    (b) =>
+      (b.transcript?.length ?? 0) > 0 ||
+      (b.answers?.length ?? 0) > 0 ||
+      (b.note?.length ?? 0) > 0,
+    { message: "Provide a transcript, answers, or a regeneration note." },
+  )
+  .refine((b) => !b.note || b.sessionId, {
+    message: "A regeneration note needs the sessionId of its journal loop.",
   });
 
 export type JournalRequestBody = z.infer<typeof bodySchema>;
