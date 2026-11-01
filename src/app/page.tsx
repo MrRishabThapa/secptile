@@ -5,6 +5,7 @@ import { z } from "zod";
 import { TranscriptForm } from "@/components/transcript-form";
 import { QuestionsStep } from "@/components/questions-step";
 import { DraftView } from "@/components/draft-view";
+import { WAKE_GREETING, detectWakePhrase } from "@/lib/wake";
 import { phaseSchema, type Draft } from "@/lib/schema";
 
 type Step = "input" | "questions" | "draft";
@@ -20,6 +21,8 @@ export default function Home() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [questions, setQuestions] = useState<string[]>([]);
   const [draft, setDraft] = useState<Draft | null>(null);
+  const [transcript, setTranscript] = useState("");
+  const [greeting, setGreeting] = useState<string | null>(null);
 
   async function callApi(body: Record<string, unknown>) {
     setBusy(true);
@@ -81,11 +84,23 @@ export default function Home() {
     }
   }
 
+  /**
+   * Wake-phrase check after every transcription (AGENTS.md §9): when the
+   * transcript starts the session, greet and keep any extra speech.
+   */
+  function handleTranscript(text: string) {
+    const { woke, remainder } = detectWakePhrase(text);
+    setTranscript(remainder);
+    if (woke) setGreeting(WAKE_GREETING);
+  }
+
   function restart() {
     setStep("input");
     setSessionId(null);
     setQuestions([]);
     setDraft(null);
+    setTranscript("");
+    setGreeting(null);
     setError(null);
   }
 
@@ -100,6 +115,15 @@ export default function Home() {
         </p>
       </header>
 
+      {greeting && (
+        <div
+          role="status"
+          className="rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-300"
+        >
+          {greeting}
+        </div>
+      )}
+
       {error && (
         <div
           role="alert"
@@ -109,7 +133,14 @@ export default function Home() {
         </div>
       )}
 
-      {step === "input" && !busy && <TranscriptForm busy={busy} onSubmit={startJournal} />}
+      {step === "input" && !busy && (
+        <TranscriptForm
+          busy={busy}
+          transcript={transcript}
+          onTranscriptChange={handleTranscript}
+          onSubmit={startJournal}
+        />
+      )}
 
       {step === "questions" && !busy && (
         <>
