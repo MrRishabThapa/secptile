@@ -45,13 +45,15 @@ type Props = {
   statusKey: number;
   /** Called before the full-page OAuth redirect so the day can be restored. */
   onConnect: () => void;
+  /** Links the LinkedIn post to this day's history record. */
+  sessionId: string | null;
 };
 
 /**
  * Post the approved day to LinkedIn as plain text (Phase 5, official API).
  * Shown only after approval — same hard rule as portfolio publishing.
  */
-export function LinkedInShare({ draft, approved, statusKey, onConnect }: Props) {
+export function LinkedInShare({ draft, approved, statusKey, onConnect, sessionId }: Props) {
   const [status, setStatus] = useState<Status | null>(null);
   const [text, setText] = useState("");
   const [edited, setEdited] = useState(false);
@@ -94,7 +96,12 @@ export function LinkedInShare({ draft, approved, statusKey, onConnect }: Props) 
       const response = await fetch("/api/linkedin/post", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, visibility: "PUBLIC", approved: true }),
+        body: JSON.stringify({
+          text,
+          visibility: "PUBLIC",
+          approved: true,
+          sessionId: sessionId ?? undefined,
+        }),
       });
       const json: unknown = await response.json();
       const message =
