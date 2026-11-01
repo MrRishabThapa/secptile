@@ -6,28 +6,95 @@ import { TranscriptForm } from "@/components/transcript-form";
 import { QuestionsStep } from "@/components/questions-step";
 import { DraftEditor } from "@/components/draft-editor";
 import { LinkedInPreview } from "@/components/linkedin-preview";
+import {
+  LinkedInShare,
+  clearLinkedInResume,
+  readLinkedInResume,
+  saveLinkedInResume,
+} from "@/components/linkedin-share";
 import { WAKE_GREETING, detectWakePhrase } from "@/lib/wake";
 import { phaseSchema, type Draft } from "@/lib/schema";
 
 type Step = "input" | "questions" | "draft";
-type PublishResult = { file: string; commitHash: string | null; pushed: boolean; pushError: string | null };
+type PublishResult = {
+  file: string;
+  commitHash: string | null;
+  pushed: boolean;
+  pushError: string | null;
+};
 
 /** Shape of /api/journal's success body — re-validated client-side. */
 const apiBodySchema = phaseSchema.extend({ sessionId: z.string().min(1) });
 type ApiBody = z.infer<typeof apiBodySchema>;
 
+/**
+ * Returning from the LinkedIn OAuth redirect: the browser lands back on "/"
+ * with ?linkedin=connected|error, and an in-progress day was stashed in
+ * sessionStorage before the redirect (see onConnect below). Restore it.
+ */
+function resumeIfOAuthReturn(): {
+  step: Step;
+  draft: Draft | null;
+  approved: boolean;
+  transcript: string;
+  oauthConnected: boolean;
+  oauthMessage: string | null;
+} {
+  if (typeof window === "undefined") {
+    return {
+      step: "input",
+      draft: null,
+      approved: false,
+      transcript: "",
+      oauthConnected: false,
+      oauthMessage: null,
+    };
+  }
+  const flag = new URLSearchParams(window.location.search).get("linkedin");
+  if (!flag) {
+    return {
+      step: "input",
+      draft: null,
+      approved: false,
+      transcript: "",
+      oauthConnected: false,
+      oauthMessage: null,
+    };
+  }
+  // Drop the query param so a refresh doesn't double-fire the restore.
+  window.history.replaceState(null, "", window.location.pathname);
+
+  const resume = readLinkedInResume();
+  clearLinkedInResume();
+  const connected = flag === "connected";
+  return {
+    step: resume && connected ? "draft" : "input",
+    draft: resume?.draft ?? null,
+    approved: resume?.approved ?? false,
+    transcript: resume?.transcript ?? "",
+    oauthConnected: connected,
+    oauthMessage: connected
+      ? "LinkedIn connected ✓"
+      : "LinkedIn connection failed — check the app credentials and try Connect again.",
+  };
+}
+
+const initialState = resumeIfOAuthReturn();
+
 export default function Home() {
-  const [step, setStep] = useState<Step>("input");
+  const [step, setStep] = useState<Step>(initialState.step);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [questions, setQuestions] = useState<string[]>([]);
-  const [draft, setDraft] = useState<Draft | null>(null);
-  const [transcript, setTranscript] = useState("");
+  const [draft, setDraft] = useState<Draft | null>(initialState.draft);
+  const [transcript, setTranscript] = useState(initialState.transcript);
   const [greeting, setGreeting] = useState<string | null>(null);
-  const [approved, setApproved] = useState(false);
+  const [approved, setApproved] = useState(initialState.approved);
   const [publishBusy, setPublishBusy] = useState(false);
   const [publishResult, setPublishResult] = useState<PublishResult | null>(null);
+  /** Bumped after a successful OAuth return so the share panel re-checks. */
+  const [statusKey] = useState(initialState.oauthConnected ? 1 : 0);
 
   async function callApi(body: Record<string, unknown>) {
     setBusy(true);
@@ -147,6 +214,7 @@ export default function Home() {
     setGreeting(null);
     setApproved(false);
     setError(null);
+    setPublishResult(null);
   }
 
   return (
@@ -166,6 +234,19 @@ export default function Home() {
           className="rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-300"
         >
           {greeting}
+        </div>
+      )}
+
+      {initialState.oauthMessage && (
+        <div
+          role="status"
+          className={`rounded-lg border px-4 py-3 text-sm ${
+            initialState.oauthConnected
+              ? "border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-300"
+              : "border-red-300 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950/50 dark:text-red-300"
+          }`}
+        >
+          {initialState.oauthMessage}
         </div>
       )}
 
@@ -219,7 +300,7 @@ export default function Home() {
                 : publishResult.pushError
                   ? `, not pushed — ${publishResult.pushError} (run git push in the portfolio repo)`
                   : ""}
-              ). LinkedIn sharing arrives in Phase 5.
+              ).
             </div>
           )}
           {approved && !publishResult && (
@@ -227,7 +308,7 @@ export default function Home() {
               role="status"
               className="rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-300"
             >
-              Approved. Publishing to the portfolio (Phase 4) and LinkedIn (Phase 5) happens
+              Approved. Publishing to the portfolio and posting to LinkedIn happen
               only after — and always gated by — this approval. Nothing has been posted.
             </div>
           )}
@@ -243,7 +324,17 @@ export default function Home() {
               onPublish={approved ? publish : undefined}
               publishBusy={publishBusy}
             />
-            <LinkedInPreview body={draft.body} tags={draft.tags} />
+            <div className="flex flex-col gap-8">
+              <LinkedInPreview body={draft.body} tags={draft.tags} />
+              <LinkedInShare
+                draft={draft}
+                approved={approved}
+                statusKey={statusKey}
+                onConnect={() =>
+                  draft && saveLinkedInResume({ draft, approved, transcript })
+                }
+              />
+            </div>
           </div>
 
           <button
