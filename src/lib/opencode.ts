@@ -86,8 +86,12 @@ function buildRunArgs(input: JournalInput): string[] {
   return args;
 }
 
-/** Events streamed by `opencode run --format json` (one JSON object per line). */
 type RunEvent = { type?: string; sessionID?: string; part?: { type?: string; text?: string } };
+
+/** Progress events surfaced to a streaming caller while the run executes. */
+export type RunProgress =
+  | { type: "started" }
+  | { type: "session"; sessionId: string };
 
 function parseRunOutput(stream: string): RunEvent[] {
   const events: RunEvent[] = [];
@@ -144,12 +148,33 @@ function runBin(
   args: string[],
   cwd: string,
   timeout: number,
+  onLine?: (line: string) => void,
 ): Promise<{ stdout: string; stderr: string; code: number | null; timedOut: boolean }> {
   return new Promise((resolve, reject) => {
     const child = spawn(bin, args, { cwd, stdio: ["ignore", "pipe", "pipe"] });
     let stdout = "";
     let stderr = "";
     let timedOut = false;
+
+    // Incremental line-splitter: forwards complete lines to onLine while
+    // keeping full buffers for the final parse (same accumulation as before).
+    function wire(which: "stdout" | "stderr") {
+      let offset = 0;
+      return (chunk: string) => {
+        // Full-buffer accumulation first (final parse keeps old semantics).
+        if (which === "stdout") stdout += chunk;
+        else stderr += chunk;
+        if (!onLine) return;
+        const text = which === "stdout" ? stdout : stderr;
+        let index: number;
+        while ((index = text.indexOf("\n", offset)) !== -1) {
+          onLine(text.slice(offset, index));
+          offset = index + 1;
+        }
+      };
+    }
+    const onStdout = wire("stdout");
+    const onStderr = wire("stderr");
 
     const timer = setTimeout(() => {
       timedOut = true;
@@ -158,11 +183,11 @@ function runBin(
 
     child.stdout.setEncoding("utf8");
     child.stdout.on("data", (chunk: string) => {
-      if (stdout.length + chunk.length <= MAX_BUFFER) stdout += chunk;
+      if (stdout.length + chunk.length <= MAX_BUFFER) onStdout(chunk);
     });
     child.stderr.setEncoding("utf8");
     child.stderr.on("data", (chunk: string) => {
-      if (stderr.length + chunk.length <= MAX_BUFFER) stderr += chunk;
+      if (stderr.length + chunk.length <= MAX_BUFFER) onStderr(chunk);
     });
 
     child.on("error", (error) => {
@@ -178,12 +203,34 @@ function runBin(
 
 export async function runJournalPhase(
   input: JournalInput,
+  onProgress?: (event: RunProgress) => void,
 ): Promise<{ sessionId: string; phase: Phase }> {
   const bin = process.env.OPENCODE_BIN?.trim() || "opencode";
   const cwd = await workspace();
   const args = buildRunArgs(input);
+  onProgress?.({ type: "started" });
 
-  const output = await runBin(bin, args, cwd, timeoutMs()).catch((error) => {
+  let announcedSession = false;
+  const output = await runBin(
+    bin,
+    args,
+    cwd,
+    timeoutMs(),
+    (line) => {
+      if (announcedSession) return;
+      const trimmed = line.trim();
+      if (!trimmed.startsWith("{")) return;
+      try {
+        const event = JSON.parse(trimmed) as RunEvent;
+        if (typeof event.sessionID === "string" && event.sessionID) {
+          announcedSession = true;
+          onProgress?.({ type: "session", sessionId: event.sessionID });
+        }
+      } catch {
+        /* not JSON — ignore line */
+      }
+    },
+  ).catch((error) => {
     const message = error instanceof Error ? error.message : String(error);
     throw new OpenCodeError(`Could not start '${bin}': ${message}`);
   });
