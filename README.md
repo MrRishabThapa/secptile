@@ -17,8 +17,15 @@ A personal voice journal that turns "here's how my day went" into a polished blo
 - **Tailwind CSS** v4
 - **zod** validation on every structured model response and API body
 - **OpenCode** via the `opencode` CLI (`opencode run --format json`), session continued with `--session <id>` for the clarifying loop. Intended path is the official SDK once its v2 client matches `opencode serve` v2; verified mismatch in Nov 2026 and went with the CLI (see git history).
-- **whisper.cpp / faster-whisper** locally for speech-to-text (Phase 2)
+- **whisper.cpp / faster-whisper** locally for speech-to-text (Phase 2 — live-verified Nov 2026)
 - **pnpm** for package management
+
+## Polish highlights (Phase 6)
+
+- **Streaming turns** — `/api/journal/stream` (NDJSON) pings "Talking to OpenCode… / session started" while the model works; the JSON contract is still gated by the same zod schemas
+- **History of past days** — every finished day is one JSON record in `~/.secptile/history/`; "Past days" lists them with portfolio/LinkedIn badges and the original transcript kept local
+- **STT-tolerant wake phrase** — span-alignment fuzzy matcher handles "sep tile", "i'm", and misheard filler words
+- **Error states** — publishing/social failures surface exact LinkedIn errors, push failures explain themselves, history never 500s the page
 
 ## Getting started
 
@@ -68,6 +75,7 @@ Auth tab (localhost http redirect only works for this exact URI):
 - `LINKEDIN_REDIRECT_URI` — must match the app's registered redirect URL exactly
 - `LINKEDIN_API_VERSION` — optional `Linkedin-Version` header override (default `202610`)
 - `LINKEDIN_TOKEN_FILE` — optional token store path (default `~/.secptile/linkedin.json`, mode 0600, outside any repo)
+- `SECPTILE_HISTORY_DIR` — optional journal-day history location (default `~/.secptile/history`)
 
 OAuth notes (verified against the current docs): access tokens expire every 60
 days; programmatic refresh tokens are only granted to approved Marketing
@@ -84,8 +92,8 @@ still valid), then falls back to the consent screen after that.
 | 2     | Voice input (local Whisper)  | ✅ code · ⏳ STT live verify pending |
 | 3     | Draft editor + approval      | ✅                                  |
 | 4     | Portfolio publishing (MDX)   | ✅                                  |
-| 5     | LinkedIn publishing (OAuth)  | ✅ current                          |
-| 6     | Polish & streaming           | ⬜ next                             |
+| 5     | LinkedIn publishing (OAuth)  | ✅                                  |
+| 6     | Polish & streaming           | ✅ current                          |
 
 See [AGENTS.md](./AGENTS.md) for the project rules, phase plan, and conventions.
 
