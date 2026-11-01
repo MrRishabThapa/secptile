@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { OpenCodeError, runJournalPhase } from "@/lib/opencode";
+import { upsertDraftSession } from "@/lib/history";
 
 export const bodySchema = z
   .object({
@@ -46,6 +47,19 @@ export async function POST(request: Request) {
 
   try {
     const { sessionId, phase } = await runJournalPhase(parsed.data);
+    // History of past days (Phase 6): best-effort, never breaks the loop.
+    if (phase.status === "ready" && sessionId && phase.draft) {
+      try {
+        await upsertDraftSession(sessionId, {
+          title: phase.draft.title,
+          body: phase.draft.body,
+          tags: phase.draft.tags,
+          transcript: parsed.data.transcript ?? undefined,
+        });
+      } catch (historyError) {
+        console.error("[api/journal] history write failed:", historyError);
+      }
+    }
     return NextResponse.json({ sessionId, ...phase });
   } catch (error) {
     if (error instanceof OpenCodeError) {
