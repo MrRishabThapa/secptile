@@ -1,0 +1,222 @@
+import { spawn } from "node:child_process";
+import { mkdir } from "node:fs/promises";
+import { homedir } from "node:os";
+import path from "node:path";
+import { phaseSchema, type Phase } from "./schema";
+
+const MAX_BUFFER = 32 * 1024 * 1024; // 32 MB — streamed run events can be verbose
+
+/** Integration-failure error with an owner-friendly message and HTTP status. */
+export class OpenCodeError extends Error {
+  readonly status: number;
+  constructor(message: string, status = 502) {
+    super(message);
+    this.name = "OpenCodeError";
+    this.status = status;
+  }
+}
+
+export type JournalInput = {
+  /** OpenCode session from a previous turn; omitted on the first turn. */
+  sessionId?: string;
+  /** Full transcription of the day summary (first turn only). */
+  transcript?: string;
+  /** Private notes: remembered for context, never published in the draft. */
+  privateNotes?: string;
+  /** Answers to the previous questions, in the same order. */
+  answers?: string[];
+};
+
+const PROMPT_RULES = [
+  "You are Secptile's journaling assistant. The user dictates a summary of their day; you help turn it into a polished blog post.",
+  "",
+  "Loop rules:",
+  "- Reply with ONLY one JSON object (no prose, no markdown fences):",
+  '  {"status":"needs_info","questions":["…"]} or {"status":"ready","draft":{"title":"…","body":"…","tags":["…"]}}',
+  "- status 'needs_info': ask focused clarifying questions about what happened, why it mattered, the outcome, and the lesson. Keep questions short and concrete.",
+  "- status 'ready': write the draft in Markdown. Roughly: what was done, what else happened, and lessons. First person, founder's voice, concise and human.",
+  "- Use ONLY facts the user stated. Never invent details. If something is uncertain, ask rather than guess.",
+  "- Messages marked PRIVATE are context only: never mention, quote, or hint at them in the draft or questions.",
+  "- Do not use any tools. Just reply with the JSON object.",
+].join("\n");
+
+/**
+ * Each turn is one `opencode run --format json` invocation.
+ * - New loop: run creates the session and reports its ID in the output stream.
+ * - Follow-ups: run with `--session <id>` continues the same conversation.
+ */
+function buildRunArgs(input: JournalInput): string[] {
+  const args = ["run", "--format", "json"];
+
+  const model = process.env.OPENCODE_MODEL?.trim();
+  if (model) args.push("--model", model);
+
+  const serverUrl = process.env.OPENCODE_SERVER_URL?.trim();
+  if (serverUrl) args.push("--server", serverUrl);
+
+  if (input.sessionId) args.push("--session", input.sessionId);
+
+  const sections: string[] = [PROMPT_RULES];
+
+  if (input.transcript) {
+    sections.push("Here is what I said about my day (transcribed, raw):", input.transcript);
+  }
+  if (input.privateNotes?.trim()) {
+    sections.push("PRIVATE (context only, never publish):", input.privateNotes.trim());
+  }
+  const answers = input.answers ?? [];
+  if (answers.length) {
+    sections.push(
+      "Answers to your questions:",
+      answers.map((answer, i) => `${i + 1}. ${answer}`).join("\n"),
+      "Continue: ask remaining questions, or produce the draft if the story is complete.",
+    );
+  }
+
+  args.push(sections.join("\n\n"));
+  return args;
+}
+
+/** Events streamed by `opencode run --format json` (one JSON object per line). */
+type RunEvent = { type?: string; sessionID?: string; part?: { type?: string; text?: string } };
+
+function parseRunOutput(stream: string): RunEvent[] {
+  const events: RunEvent[] = [];
+  for (const line of stream.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith("{")) continue;
+    try {
+      events.push(JSON.parse(trimmed) as RunEvent);
+    } catch {
+      // Not a JSON event line; ignore.
+    }
+  }
+  return events;
+}
+
+/** Pull the JSON contract object out of the model's text (tolerates fences/prose). */
+function extractJson(text: string): unknown {
+  const cleaned = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
+  try {
+    return JSON.parse(cleaned);
+  } catch {
+    const start = cleaned.indexOf("{");
+    const end = cleaned.lastIndexOf("}");
+    if (start === -1 || end <= start) return null;
+    try {
+      return JSON.parse(cleaned.slice(start, end + 1));
+    } catch {
+      return null;
+    }
+  }
+}
+
+async function workspace(): Promise<string> {
+  const dir =
+    process.env.OPENCODE_WORKSPACE_DIR?.trim() ||
+    path.join(homedir(), ".secptile", "workspace");
+  await mkdir(dir, { recursive: true });
+  return dir;
+}
+
+function timeoutMs(): number {
+  const raw = Number(process.env.OPENCODE_TIMEOUT_MS);
+  if (Number.isFinite(raw) && raw >= 1_000 && raw <= 900_000) return raw;
+  return 300_000;
+}
+
+/**
+ * Run a binary, gathering UTF-8 output. stdin is "ignore" — essential:
+ * `opencode run` waits for stdin EOF, and execFile/spawn's default pipe
+ * would keep it open and hang the run forever.
+ */
+function runBin(
+  bin: string,
+  args: string[],
+  cwd: string,
+  timeout: number,
+): Promise<{ stdout: string; stderr: string; code: number | null; timedOut: boolean }> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(bin, args, { cwd, stdio: ["ignore", "pipe", "pipe"] });
+    let stdout = "";
+    let stderr = "";
+    let timedOut = false;
+
+    const timer = setTimeout(() => {
+      timedOut = true;
+      child.kill("SIGTERM");
+    }, timeout);
+
+    child.stdout.setEncoding("utf8");
+    child.stdout.on("data", (chunk: string) => {
+      if (stdout.length + chunk.length <= MAX_BUFFER) stdout += chunk;
+    });
+    child.stderr.setEncoding("utf8");
+    child.stderr.on("data", (chunk: string) => {
+      if (stderr.length + chunk.length <= MAX_BUFFER) stderr += chunk;
+    });
+
+    child.on("error", (error) => {
+      clearTimeout(timer);
+      reject(error);
+    });
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      resolve({ stdout, stderr, code, timedOut });
+    });
+  });
+}
+
+export async function runJournalPhase(
+  input: JournalInput,
+): Promise<{ sessionId: string; phase: Phase }> {
+  const bin = process.env.OPENCODE_BIN?.trim() || "opencode";
+  const cwd = await workspace();
+  const args = buildRunArgs(input);
+
+  const output = await runBin(bin, args, cwd, timeoutMs()).catch((error) => {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new OpenCodeError(`Could not start '${bin}': ${message}`);
+  });
+
+  if (output.timedOut) {
+    throw new OpenCodeError(
+      `OpenCode took longer than ${timeoutMs() / 1000}s to respond. Try again or raise OPENCODE_TIMEOUT_MS.`,
+      504,
+    );
+  }
+  const stdout = output.stdout;
+  const stderr = output.stderr;
+
+  if (!stdout.trim()) {
+    throw new OpenCodeError("OpenCode returned no response.", 502);
+  }
+
+  const events = parseRunOutput(stdout + (stderr ? `\n${stderr}` : ""));
+  const textParts = events.filter(
+    (event) => event.type === "text" && typeof event.part?.text === "string",
+  );
+  const lastText = textParts.at(-1)?.part?.text;
+  const sessionId =
+    textParts.at(-1)?.sessionID ??
+    events.findLast((event) => typeof event.sessionID === "string")?.sessionID;
+
+  if (!lastText || !sessionId) {
+    throw new OpenCodeError("OpenCode returned no response text.");
+  }
+
+  const structured = extractJson(lastText);
+  if (structured == null) {
+    throw new OpenCodeError("Model did not return the expected JSON contract.");
+  }
+
+  // Strict gate: if the JSON is not the agreed contract, fail loudly.
+  const parsed = phaseSchema.safeParse(structured);
+  if (!parsed.success) {
+    throw new OpenCodeError(
+      `Model response did not match the Secptile contract: ${parsed.error.issues[0]?.message}`,
+    );
+  }
+
+  return { sessionId, phase: parsed.data };
+}
