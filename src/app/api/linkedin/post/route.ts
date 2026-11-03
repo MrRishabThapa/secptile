@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { LinkedInError, postToLinkedIn } from "@/lib/linkedin";
+import { updateStatus } from "@/lib/history";
 
 const bodySchema = z.object({
   /** Plain LinkedIn text (markdown is NOT accepted on commentary). */
@@ -11,6 +12,8 @@ const bodySchema = z.object({
    */
   approved: z.literal(true),
   visibility: z.enum(["PUBLIC", "CONNECTIONS"]).default("PUBLIC"),
+  /** Links the post to this day's history record, when known. */
+  sessionId: z.string().min(1).optional(),
 });
 
 export async function POST(request: Request) {
@@ -31,6 +34,14 @@ export async function POST(request: Request) {
 
   try {
     const result = await postToLinkedIn(parsed.data.text, parsed.data.visibility);
+    // Best-effort history cross-reference (Phase 6).
+    if (parsed.data.sessionId && result.postUrn) {
+      try {
+        await updateStatus(parsed.data.sessionId, { linkedInUrn: result.postUrn });
+      } catch (historyError) {
+        console.error("[api/linkedin/post] history update failed:", historyError);
+      }
+    }
     return NextResponse.json(result);
   } catch (error) {
     if (error instanceof LinkedInError) {

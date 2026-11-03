@@ -88,6 +88,7 @@ export function TranscriptForm({
           onChange={(event) => setPrivateNotes(event.target.value)}
           disabled={busy || mic.state !== "idle"}
           rows={3}
+          aria-label="Private notes, never published"
           placeholder="Context for me only — headlines, feelings, confidential bits. Excluded from the public post."
           className="w-full resize-y rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-zinc-900 placeholder-zinc-400 focus:border-amber-500 focus:outline-none dark:border-amber-800 dark:bg-amber-950/40 dark:text-zinc-100 dark:placeholder-zinc-600"
         />
