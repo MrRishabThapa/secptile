@@ -1,0 +1,20 @@
+[Unit]
+Description=Secptile desktop assistant (wake word daemon)
+After=secptile-app.service pipewire.service wireplumber.service
+Requires=secptile-app.service
+# Starts at login and restarts if it crashes.
+WantedBy=default.target
+
+[Service]
+Type=simple
+# NOTE: install.sh rewrites these two lines to your HOME/the repo checkout if needed.
+WorkingDirectory=%h/Projects/secptile/daemon
+ExecStart=%h/Projects/secptile/daemon/.venv/bin/python assistant.py
+Restart=on-failure
+RestartSec=3
+# A silent KILL is safer than a chatty one: the daemon owns the mic hardware.
+KillSignal=SIGTERM
+TimeoutStopSec=8
+
+[Install]
+WantedBy=default.target
