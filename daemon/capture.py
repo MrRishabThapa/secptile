@@ -55,22 +55,23 @@ class Mic:
         self._stream.start()
 
     def stop(self) -> None:
-        """Hard-mute: the mute requirement — no stream left open, no bytes taken."""
+        """Hard-mute: the mute requirement — no stream left open, no bytes kept."""
         if self._stream is not None:
             self._stream.stop()
             self._stream.close()
             self._stream = None
             self._loop = None
         if self._queue is not None:
-            drain = self._queue
+            queue = self._queue
             self._queue = None
-            while not drain.empty():
+            # discard everything buffered-but-not-yet-consumed (privacy best),
+            # then hand every waiter the end-of-stream sentinel
+            while True:
                 try:
-                    frame = drain.get_nowait()
-                    if frame is None:
-                        break
+                    queue.get_nowait()
                 except asyncio.QueueEmpty:
                     break
+            queue.put_nowait(None)
 
     @property
     def running(self) -> bool:
