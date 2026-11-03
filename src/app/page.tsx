@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { z } from "zod";
 import { TranscriptForm } from "@/components/transcript-form";
+import { AssistantBar } from "@/components/assistant-bar";
 import { QuestionsStep } from "@/components/questions-step";
 import { PastDays } from "@/components/past-days";
 import { DraftEditor } from "@/components/draft-editor";
@@ -303,6 +304,20 @@ export default function Home() {
           {greeting}
         </div>
       )}
+
+      {/*
+        Desktop assistant (Phase 6): the onTranscript handover is only wired on
+        the idle input step — never mid-questions or mid-draft-session — so a
+        spoken update can never hijack an ongoing flow, and publishing cadence
+        stays untouched: approval remains a button click.
+      */}
+      <AssistantBar
+        onTranscript={
+          step === "input" && !busy
+            ? (text) => void startJournal({ transcript: text })
+            : undefined
+        }
+      />
 
       {initialState.oauthMessage && (
         <div
