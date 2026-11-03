@@ -70,6 +70,8 @@ export function LinkedInShare({
   blogUrl,
 }: Props) {
   const [status, setStatus] = useState<Status | null>(null);
+  /** Set in the status effect (Date.now is not render-safe). */
+  const [expired, setExpired] = useState(false);
   const [text, setText] = useState("");
   const [edited, setEdited] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -91,9 +93,14 @@ export function LinkedInShare({
     void fetch("/api/linkedin/status")
       .then((res) => (res.ok ? res.json() : null))
       .then((json: unknown) => {
-        if (!cancelled && typeof json === "object" && json !== null) {
-          setStatus(json as Status);
-        }
+        if (cancelled || typeof json !== "object" || json === null) return;
+        const next = json as Status;
+        setStatus(next);
+        setExpired(
+          Boolean(
+            next.connected && next.expiresAt && Date.parse(next.expiresAt) <= Date.now(),
+          ),
+        );
       })
       .catch(() => undefined);
     return () => {
@@ -103,11 +110,6 @@ export function LinkedInShare({
 
   const chars = text.length;
   const overLimit = chars > LINKEDIN_TEXT_LIMIT;
-  // Tokens last ~60 days (docs); programmatic refresh is NOT assumed to be
-  // available, so an expired token always means: run the OAuth flow again.
-  const expired = Boolean(
-    status?.connected && status.expiresAt && Date.parse(status.expiresAt) <= Date.now(),
-  );
   const connected = Boolean(status?.connected) && !expired;
   const readyToPost =
     approved &&
