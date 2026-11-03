@@ -36,10 +36,27 @@ export type PublishInput = z.infer<typeof publishInputSchema>;
 export type PublishResult = {
   file: string;
   slug: string;
+  /**
+   * Live blog URL built from PORTFOLIO_POST_URL_TEMPLATE — consumed by the
+   * LinkedIn share step (article link preview) and the UI success banner.
+   * Null when the template env var is unset (no URL can be promised).
+   */
+  url: string | null;
   commitHash: string | null;
   pushed: boolean;
   pushError: string | null;
 };
+
+/**
+ * Public URL of the just-published post. The blog's URL shape is unknown
+ * here, so the owner templates it explicitly ("{date}" and "{slug}" are
+ * the tokens); an unset template simply means "no public URL is known".
+ */
+function publicUrl(slug: string, date: string): string | null {
+  const template = process.env.PORTFOLIO_POST_URL_TEMPLATE?.trim();
+  if (!template) return null;
+  return template.replace(/\{date\}/g, date).replace(/\{slug\}/g, slug);
+}
 
 function repoConfig(): { repo: string; postsDir: string } {
   const repo = process.env.PORTFOLIO_REPO_PATH?.trim();
@@ -177,6 +194,7 @@ export async function publishPost(input: PublishInput): Promise<PublishResult> {
   return {
     file: relPath,
     slug,
+    url: publicUrl(slug, date),
     commitHash: rev.code === 0 ? rev.stdout.trim() : null,
     pushed,
     pushError: pushed ? null : (push.stderr.split("\n")[0]?.trim() || "push failed"),
