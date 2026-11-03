@@ -58,7 +58,8 @@ Work **one phase at a time**. At the end of each phase, stop, summarize what was
 - **Phase 3: Draft editor + approval.** Editable draft, LinkedIn-style preview, Approve / Edit / "Regenerate with note" actions. Nothing is published yet.
 - **Phase 4: Portfolio publishing.** MDX file generation and commit/push to the portfolio repo, only after approval.
 - **Phase 5: LinkedIn publishing.** OAuth flow, token storage and refresh handling (tokens expire roughly every 60 days), post creation, only after approval.
-- **Phase 6: Polish.** Streaming responses, history of past days, error states, accessibility.
+- **Phase 6: Desktop voice assistant.** Always-on local wake-word daemon ("hey secptile" / "hey secp"), voice commands ("open system", "close system"), voice-driven daily updates into the journal flow, systemd --user services, privacy controls (mute, mic indicator).
+- **Phase 7: Polish.** Streaming responses, history of past days, error states, accessibility.
 
 ## 6. Hard rules
 
