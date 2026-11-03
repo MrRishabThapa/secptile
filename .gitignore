@@ -16,6 +16,11 @@
 # misc
 .DS_Store
 *.pem
+# python (daemon/)
+__pycache__/
+*.py[cod]
+daemon/.venv/
+.pytest_cache/
 
 # debug
 npm-debug.log*
