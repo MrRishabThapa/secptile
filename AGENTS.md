@@ -27,7 +27,7 @@ A personal web app for a founder/entrepreneur (who is also a UX designer and Rea
 - **AI brain:** OpenCode in headless server mode (`opencode serve`), called from Next.js route handlers through the OpenCode SDK. Check the current OpenCode docs for exact endpoints before writing code; do not guess APIs. Fallback: `opencode run "<prompt>"` from a route handler.
 - **Speech-to-text:** local `whisper.cpp` or `faster-whisper`, exposed over a small local HTTP endpoint. Audio captured in the browser with `MediaRecorder`.
 - **Portfolio publishing:** write an MDX/Markdown post file into the portfolio repo (path configurable by env var), then commit and push.
-- **LinkedIn publishing:** official LinkedIn Posts API with OAuth 2.0 and the `w_member_social` scope. **Never** use browser automation, scraping, or unofficial APIs for LinkedIn.
+- **LinkedIn publishing:** official LinkedIn Posts API (`POST https://api.linkedin.com/rest/posts`, pinned `Linkedin-Version: 202610`) with OAuth 2.0, scopes `openid profile w_member_social`, and the member URN `urn:li:person:{sub}` from the OIDC userinfo endpoint. App routes are the source of truth — never rename them (the LinkedIn app's registered redirect URL depends on the callback): `GET /api/auth/linkedin/start`, `GET /api/auth/linkedin/callback`, `POST /api/linkedin/post`. **Never** use browser automation, scraping, or unofficial APIs for LinkedIn.
 - **Config/secrets:** `.env.local` only, plus a committed `.env.example` with placeholder values. Never commit real secrets.
 
 ## 4. Structured model contract
