@@ -20,8 +20,6 @@ class WakeWatcher:
         self.model_paths = model_paths
         self.threshold = threshold
         self._model = WakeWordModel(models=[str(p) for p in model_paths])
-        self._names = list(self._model.model_names) \
-            if hasattr(self._model, "model_names") else self._model.names
 
     def predict(self, frame) -> str | None:
         """Return the matched phrase name, or None until one scores above threshold."""
