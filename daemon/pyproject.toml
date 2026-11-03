@@ -3,7 +3,7 @@
 # its own systemd --user service with its own venv.
 #
 # Runtime deps are intentionally minimal; the wake-word models (.onnx) are
-# trained OUTIPA of band with livekit-wakeword's CLI and stored in
+# trained out of band with livekit-wakeword's CLI and stored in
 # ~/.secptile/assistant/models/ (never committed).
 [project]
 name = "secptile-assistant"
