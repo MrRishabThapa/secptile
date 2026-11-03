@@ -1,0 +1,37 @@
+# Secptile desktop assistant (Phase 6) — a standalone Python package.
+# It is deliberately NOT part of the pnpm/Next.js workspace: the daemon runs as
+# its own systemd --user service with its own venv.
+#
+# Runtime deps are intentionally minimal; the wake-word models (.onnx) are
+# trained OUTIPA of band with livekit-wakeword's CLI and stored in
+# ~/.secptile/assistant/models/ (never committed).
+[project]
+name = "secptile-assistant"
+version = "0.1.0"
+description = "Secptile desktop voice assistant: wake word, VAD capture, intents, journal forward"
+requires-python = ">=3.11"
+dependencies = [
+    "livekit-wakeword>=0.2",   # Apache-2.0; WakeWordModel.predict ONNX runtime path
+    "sounddevice>=0.5",        # PortAudio via PipeWire; 16 kHz int16 recorder
+    "numpy>=1.26",             # audio frames for openWakeWord-style models
+    "httpx>=0.28",             # multipart transcribe + app posts
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+# Runs as a directory of modules from daemon/ (`python assistant.py`), so no
+# package conversion — pyproject only pins deps for the venv.
+package-dir = {"" = "."}
+py-modules = [
+    "assistant",
+    "capture",
+    "config",
+    "feedback",
+    "intents",
+    "transcribe",
+    "wake",
+    "windowctl",
+]
