@@ -1,32 +1,7 @@
 import { NextResponse } from "next/server";
-import { z } from "zod";
 import { OpenCodeError, runJournalPhase } from "@/lib/opencode";
-
-export const bodySchema = z
-  .object({
-    /** OpenCode session from a previous turn (same journal loop). */
-    sessionId: z.string().min(1).optional(),
-    /** Day summary transcript — first turn. */
-    transcript: z.string().min(1).max(20_000).optional(),
-    /** Private notes — context only, never published. */
-    privateNotes: z.string().max(20_000).optional(),
-    /** Answers to the previous questions, in the same order. */
-    answers: z.array(z.string().min(1)).min(1).max(10).optional(),
-    /** Owner's correction/feedback for regenerating the draft. */
-    note: z.string().min(1).max(2_000).optional(),
-  })
-  .refine(
-    (b) =>
-      (b.transcript?.length ?? 0) > 0 ||
-      (b.answers?.length ?? 0) > 0 ||
-      (b.note?.length ?? 0) > 0,
-    { message: "Provide a transcript, answers, or a regeneration note." },
-  )
-  .refine((b) => !b.note || b.sessionId, {
-    message: "A regeneration note needs the sessionId of its journal loop.",
-  });
-
-export type JournalRequestBody = z.infer<typeof bodySchema>;
+import { journalBodySchema } from "@/lib/journal-request";
+import { upsertDraftSession } from "@/lib/history";
 
 export async function POST(request: Request) {
   let raw: unknown;
@@ -36,7 +11,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Body must be valid JSON." }, { status: 400 });
   }
 
-  const parsed = bodySchema.safeParse(raw);
+  const parsed = journalBodySchema.safeParse(raw);
   if (!parsed.success) {
     return NextResponse.json(
       { error: parsed.error.issues[0]?.message ?? "Invalid request body." },
@@ -46,6 +21,19 @@ export async function POST(request: Request) {
 
   try {
     const { sessionId, phase } = await runJournalPhase(parsed.data);
+    // History of past days (Phase 6): best-effort, never breaks the loop.
+    if (phase.status === "ready" && sessionId && phase.draft) {
+      try {
+        await upsertDraftSession(sessionId, {
+          title: phase.draft.title,
+          body: phase.draft.body,
+          tags: phase.draft.tags,
+          transcript: parsed.data.transcript ?? undefined,
+        });
+      } catch (historyError) {
+        console.error("[api/journal] history write failed:", historyError);
+      }
+    }
     return NextResponse.json({ sessionId, ...phase });
   } catch (error) {
     if (error instanceof OpenCodeError) {

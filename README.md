@@ -8,8 +8,8 @@ A personal voice journal that turns "here's how my day went" into a polished blo
 2. 🧠 The transcript is sent to OpenCode (`opencode run`, JSON-only prompt, strict zod gate).
 3. ❓ OpenCode asks clarifying questions until the day's story is complete.
 4. 📝 It drafts a blog-style post (what was done, what else, lessons).
-5. 👀 You review it, edit or regenerate, and approve (Phase 3).
-6. 🚀 Only after approval: MDX post → portfolio repo → commit & push, and a LinkedIn post via the official API.
+5. 👀 You review it in an editor beside a LinkedIn-style preview, edit or regenerate with a note, and **approve**.
+6. 🚀 Only after explicit approval: MDX post → portfolio repo (`content/posts/YYYY-MM-DD-slug.mdx`, commit, best-effort push) and a LinkedIn post via the official Posts API (`POST /rest/posts`, `w_member_social`).
 
 ## Tech stack
 
@@ -17,8 +17,15 @@ A personal voice journal that turns "here's how my day went" into a polished blo
 - **Tailwind CSS** v4
 - **zod** validation on every structured model response and API body
 - **OpenCode** via the `opencode` CLI (`opencode run --format json`), session continued with `--session <id>` for the clarifying loop. Intended path is the official SDK once its v2 client matches `opencode serve` v2; verified mismatch in Nov 2026 and went with the CLI (see git history).
-- **whisper.cpp / faster-whisper** locally for speech-to-text (Phase 2)
+- **whisper.cpp / faster-whisper** locally for speech-to-text (Phase 2 — live-verified Nov 2026)
 - **pnpm** for package management
+
+## Polish highlights (Phase 6)
+
+- **Streaming turns** — `/api/journal/stream` (NDJSON) pings "Talking to OpenCode… / session started" while the model works; the JSON contract is still gated by the same zod schemas
+- **History of past days** — every finished day is one JSON record in `~/.secptile/history/`; "Past days" lists them with portfolio/LinkedIn badges and the original transcript kept local
+- **STT-tolerant wake phrase** — span-alignment fuzzy matcher handles "sep tile", "i'm", and misheard filler words
+- **Error states** — publishing/social failures surface exact LinkedIn errors, push failures explain themselves, history never 500s the page
 
 ## Getting started
 
@@ -53,17 +60,40 @@ OpenCode environment (in `.env.local`):
 - `OPENCODE_SERVER_URL` — optional: attach runs to a headless server instead of the default background service
 - `OPENCODE_BIN`, `OPENCODE_TIMEOUT_MS` — optional overrides
 
+Publishing environment (in `.env.local`):
+
+- `PORTFOLIO_REPO_PATH` — local clone of your portfolio repo (e.g. `/home/rishab/Projects/portfolio/next-portfolio`)
+- `PORTFOLIO_POSTS_DIR` — optional, posts directory inside the repo (default `content/posts`)
+
+LinkedIn environment (in `.env.local`) — create the app at
+[linkedin.com/developers](https://www.linkedin.com/developers), request the
+**"Share on LinkedIn"** product for the `w_member_social` scope, and register
+the redirect URL `http://localhost:3000/api/auth/linkedin/callback` under the
+Auth tab (localhost http redirect only works for this exact URI):
+
+- `LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET` — app credentials
+- `LINKEDIN_REDIRECT_URI` — must match the app's registered redirect URL exactly
+- `LINKEDIN_API_VERSION` — optional `Linkedin-Version` header override (default `202610`)
+- `LINKEDIN_TOKEN_FILE` — optional token store path (default `~/.secptile/linkedin.json`, mode 0600, outside any repo)
+- `SECPTILE_HISTORY_DIR` — optional journal-day history location (default `~/.secptile/history`)
+
+OAuth notes (verified against the current docs): access tokens expire every 60
+days; programmatic refresh tokens are only granted to approved Marketing
+Platform partners, so Secptile re-runs the OAuth flow when the token dies
+(LinkedIn bypasses the consent screen while you're logged in and the token is
+still valid), then falls back to the consent screen after that.
+
 ## Project status
 
-| Phase | Scope                        | Status            |
-| ----- | ---------------------------- | ----------------- |
-| 0     | Scaffold                     | ✅                |
-| 1     | Text-only journal loop       | ✅ current        |
-| 2     | Voice input (local Whisper)  | ⬜ next           |
-| 3     | Draft editor + approval      | ⬜                |
-| 4     | Portfolio publishing (MDX)   | ⬜                |
-| 5     | LinkedIn publishing (OAuth)  | ⬜                |
-| 6     | Polish & streaming           | ⬜                |
+| Phase | Scope                        | Status                              |
+| ----- | ---------------------------- | ----------------------------------- |
+| 0     | Scaffold                     | ✅                                  |
+| 1     | Text-only journal loop       | ✅                                  |
+| 2     | Voice input (local Whisper)  | ✅ code · ⏳ STT live verify pending |
+| 3     | Draft editor + approval      | ✅                                  |
+| 4     | Portfolio publishing (MDX)   | ✅                                  |
+| 5     | LinkedIn publishing (OAuth)  | ✅                                  |
+| 6     | Polish & streaming           | ✅ current                          |
 
 See [AGENTS.md](./AGENTS.md) for the project rules, phase plan, and conventions.
 
