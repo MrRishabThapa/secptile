@@ -19,6 +19,9 @@ import { phaseSchema, type Draft } from "@/lib/schema";
 type Step = "input" | "questions" | "draft";
 type PublishResult = {
   file: string;
+  slug: string;
+  /** Live blog URL (PORTFOLIO_POST_URL_TEMPLATE) — null when not configured. */
+  url: string | null;
   commitHash: string | null;
   pushed: boolean;
   pushError: string | null;
@@ -376,6 +379,20 @@ export default function Home() {
                   ? `, not pushed — ${publishResult.pushError} (run git push in the portfolio repo)`
                   : ""}
               ).
+              {publishResult.url && (
+                <>
+                  {" "}
+                  Live at{" "}
+                  <a
+                    href={publishResult.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="font-medium underline underline-offset-2"
+                  >
+                    {publishResult.url}
+                  </a>
+                </>
+              )}
             </div>
           )}
           {approved && !publishResult && (
@@ -411,6 +428,8 @@ export default function Home() {
                   saveLinkedInResume({ sessionId, draft, approved, transcript })
                 }
                 sessionId={sessionId}
+                portfolioPublished={Boolean(publishResult)}
+                blogUrl={publishResult?.url ?? null}
               />
             </div>
           </div>
