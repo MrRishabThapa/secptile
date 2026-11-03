@@ -9,7 +9,12 @@ A personal voice journal that turns "here's how my day went" into a polished blo
 3. ❓ OpenCode asks clarifying questions until the day's story is complete.
 4. 📝 It drafts a blog-style post (what was done, what else, lessons).
 5. 👀 You review it in an editor beside a LinkedIn-style preview, edit or regenerate with a note, and **approve**.
-6. 🚀 Only after explicit approval: MDX post → portfolio repo (`content/posts/YYYY-MM-DD-slug.mdx`, commit, best-effort push) and a LinkedIn post via the official Posts API (`POST /rest/posts`, `w_member_social`).
+6. 🚀 Only after explicit approval: MDX post → portfolio repo (`content/posts/YYYY-MM-DD-slug.mdx`, commit, best-effort push) and a LinkedIn post via the official Posts API (`POST https://api.linkedin.com/rest/posts`, `Linkedin-Version: 202610`, `X-Restli-Protocol-Version: 2.0.0`), with the live blog URL attached as the article link preview.
+
+**LinkedIn routes (source of truth — do not rename):** OAuth starts at
+`GET /api/auth/linkedin/start`, LinkedIn returns to
+`GET /api/auth/linkedin/callback`, and posting is `POST /api/linkedin/post`.
+The registered redirect URL must match the callback exactly.
 
 ## Tech stack
 
@@ -64,10 +69,12 @@ Publishing environment (in `.env.local`):
 
 - `PORTFOLIO_REPO_PATH` — local clone of your portfolio repo (e.g. `/home/rishab/Projects/portfolio/next-portfolio`)
 - `PORTFOLIO_POSTS_DIR` — optional, posts directory inside the repo (default `content/posts`)
+- `PORTFOLIO_POST_URL_TEMPLATE` — optional template for the LIVE post URL, e.g. `https://your-domain.com/blog/{date}-{slug}`; consumed by the LinkedIn article link preview and the publish success banner. Tokens: `{date}`, `{slug}`.
 
 LinkedIn environment (in `.env.local`) — create the app at
-[linkedin.com/developers](https://www.linkedin.com/developers), request the
-**"Share on LinkedIn"** product for the `w_member_social` scope, and register
+[linkedin.com/developers](https://www.linkedin.com/developers), request both
+**"Sign In with LinkedIn using OpenID Connect"** (`openid`, `profile` — the
+member's `sub`) and **"Share on LinkedIn"** (`w_member_social`), and register
 the redirect URL `http://localhost:3000/api/auth/linkedin/callback` under the
 Auth tab (localhost http redirect only works for this exact URI):
 
@@ -77,11 +84,24 @@ Auth tab (localhost http redirect only works for this exact URI):
 - `LINKEDIN_TOKEN_FILE` — optional token store path (default `~/.secptile/linkedin.json`, mode 0600, outside any repo)
 - `SECPTILE_HISTORY_DIR` — optional journal-day history location (default `~/.secptile/history`)
 
-OAuth notes (verified against the current docs): access tokens expire every 60
-days; programmatic refresh tokens are only granted to approved Marketing
-Platform partners, so Secptile re-runs the OAuth flow when the token dies
-(LinkedIn bypasses the consent screen while you're logged in and the token is
-still valid), then falls back to the consent screen after that.
+OAuth notes (verified against the current docs): the app authenticates via
+ scopes `openid profile w_member_social`; the member URN comes from
+`GET https://api.linkedin.com/v2/userinfo` → `sub` → `urn:li:person:{sub}`.
+Access tokens expire every 60 days; programmatic refresh tokens are only
+granted to approved Marketing Platform partners, so Secptile re-runs the
+OAuth flow when the token dies (LinkedIn bypasses the consent screen while
+you're logged in and the token is still valid), then falls back to the
+consent screen after that. Everything (expiry date, Reconnect button) shows
+on the share panel. **Note:** requesting a different scope set than before
+revokes previously issued tokens — one reconnect after the OIDC switch is
+expected.
+
+Testing (disposable post): publish to the portfolio, post from the share
+panel (the two-click confirm guards double-posts), then delete the post on
+LinkedIn and remove the test MDX/day from the portfolio repo and the
+history dir. The post button only enables after the portfolio publish
+succeeded, and retries after a LinkedIn failure don't republish the blog
+post.
 
 ## Project status
 

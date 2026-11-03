@@ -39,6 +39,33 @@ export function stripMarkdown(md: string): string {
     .trim();
 }
 
+/**
+ * LinkedIn commentary is "little text" (docs: little-text-format). These
+ * characters are reserved for the little grammar (mentions, hashtags,
+ * templates) and must be backslash-escaped to survive as literal plaintext —
+ * docs: "All reserved characters need to be escaped with a backslash, even if
+ * those characters are not used in one of the supported elements or
+ * templates."
+ *
+ * A single pass is safe: every reserved character (including the backslash
+ * itself) is in one character class, so nothing is escaped twice.
+ */
+const RESERVED_CHARS = /[\\|{}@[\]()<>#*_~]/g;
+
+export function escapeLittleText(text: string): string {
+  return text.replace(RESERVED_CHARS, "\\$&");
+}
+
+/**
+ * The text actually posted to LinkedIn: markdown stripped, then every
+ * reserved little-text character escaped. Use for the real `commentary`;
+ * `stripMarkdown` alone stays for the on-screen preview (no visible
+ * backslashes there).
+ */
+export function toLinkedInText(md: string): string {
+  return escapeLittleText(stripMarkdown(md));
+}
+
 /** Hashtags line from the draft tags, e.g. "#build-in-public #ux". */
 export function tagsToHashtags(tags: string[]): string {
   return tags

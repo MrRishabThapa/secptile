@@ -6,15 +6,21 @@
  *     (response_type=code, client_id, redirect_uri, state, scope)
  * - Token exchange / refresh: POST https://www.linkedin.com/oauth/v2/accessToken
  *     (x-www-form-urlencoded)
- * - Member identity: GET https://api.linkedin.com/v2/me → id → urn:li:person:{id}
- *     (needs r_basicprofile)
+ * - Member identity (Sign In with LinkedIn using OpenID Connect):
+ *     GET https://api.linkedin.com/v2/userinfo → `sub` → urn:li:person:{sub}.
+ *     Scopes: openid profile w_member_social. Changing scopes invalidates
+ *     previously granted tokens (authorization-code-flow docs, step 3 note).
  * - Create post: POST https://api.linkedin.com/rest/posts
  *     headers: Authorization: Bearer, X-Restli-Protocol-Version: 2.0.0,
- *              Linkedin-Version: YYYYMM (e.g. 202610), Content-Type: application/json
+ *              Linkedin-Version: YYYYMM (2026-10 docs → "202610"), Content-Type
  *     → 201, post URN in the x-restli-id response header
+ * - Link preview: content.article { source (required URL), title (required,
+ *     <400 chars), description (optional) } — the API does not scrape URLs,
+ *     so the caller supplies these; thumbnail is optional and omitted here.
  *
  * Tokens live OUTSIDE the repo (~/.secptile/linkedin.json, mode 0600) — never
- * committed, never sent to the client.
+ * committed, never sent to the client. Programmatic refresh tokens are a
+ * limited-partner feature: expiry always means "run the OAuth flow again".
  */
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
@@ -49,7 +55,12 @@ export type LinkedInStatus = {
   expiresAt: string | null;
 };
 
-export const LINKEDIN_SCOPES = ["r_basicprofile", "w_member_social"];
+/** Docs: OIDC sign-in — openid+profile identify the member; posting is w_member_social. */
+export const LINKEDIN_SCOPES = [
+  "openid",
+  "profile",
+  "w_member_social",
+];
 
 /** Versions track the docs' li-lms-YYYY-MM monikers; 2026-10 is current. */
 const DEFAULT_API_VERSION = "202610";
@@ -156,28 +167,32 @@ async function tokenRequest(
   return token;
 }
 
-/** GET /v2/me → id → urn:li:person:{id} (docs: Profile API). */
+/** GET /v2/userinfo → sub → urn:li:person:{sub} (docs: OIDC sign-in). */
 async function fetchMemberUrn(accessToken: string): Promise<string> {
-  const response = await fetch("https://api.linkedin.com/v2/me", {
+  const response = await fetch("https://api.linkedin.com/v2/userinfo", {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
   if (!response.ok) {
     const detail = (await response.text()).split("\n")[0]?.trim();
     throw new LinkedInError(
-      `Could not read your LinkedIn identity (/v2/me ${response.status})${detail ? `: ${detail}` : ""}.`,
+      `Could not read your LinkedIn identity (/v2/userinfo ${response.status})${detail ? `: ${detail}` : ""}.`,
       502,
       response.status === 401 || response.status === 403,
     );
   }
   const json: unknown = await response.json();
-  const id =
-    typeof json === "object" && json !== null && "id" in json
-      ? (json as { id: unknown }).id
+  const sub =
+    typeof json === "object" && json !== null && "sub" in json
+      ? (json as { sub: unknown }).sub
       : null;
-  if (typeof id !== "string" || !id) {
-    throw new LinkedInError("LinkedIn profile response was malformed.", 502, true);
+  if (typeof sub !== "string" || !sub) {
+    throw new LinkedInError(
+      "LinkedIn userinfo response was malformed (missing sub).",
+      502,
+      true,
+    );
   }
-  return `urn:li:person:${id}`;
+  return `urn:li:person:${sub}`;
 }
 
 /** Exchange the OAuth code for tokens, resolve the member URN, store it. */
@@ -270,21 +285,59 @@ async function getAccessToken(): Promise<LinkedInTokenRecord> {
 
 export type PostVisibility = "PUBLIC" | "CONNECTIONS";
 
+/**
+ * Link preview for the live blog post (docs: Post Schema / Article content).
+ * The API does not scrape URLs — source and title are required inputs and
+ * `description`/`thumbnail` are optional; thumbnail stays omitted here.
+ */
+export type LinkedInArticle = {
+  url: string;
+  /** Blog post title, <400 chars (Post Schema). */
+  title: string;
+  /** Optional (<4086 chars per the Article schema). */
+  description?: string;
+};
+
 export type LinkedInPostResult = {
   /** e.g. urn:li:share:684478… — from the 201 response's x-restli-id header. */
   postUrn: string | null;
 };
 
 /**
- * Create a text-only member post via POST /rest/posts. Only ever called with
- * text the owner explicitly approved (hard rule 1 — enforced in the route).
+ * Create a text (or text+article-link) member post via POST /rest/posts. Only
+ * ever called with text the owner explicitly approved (hard rule 1 — enforced
+ * in the route).
  */
 export async function postToLinkedIn(
   text: string,
   visibility: PostVisibility,
+  article?: LinkedInArticle,
 ): Promise<LinkedInPostResult> {
   const record = await getAccessToken();
   const { apiVersion } = config();
+
+  const payload: Record<string, unknown> = {
+    // Schema (post-api-schema): author is create-only required.
+    author: record.memberUrn,
+    commentary: text,
+    visibility,
+    distribution: {
+      feedDistribution: "MAIN_FEED",
+      targetEntities: [],
+      thirdPartyDistributionChannels: [],
+    },
+    lifecycleState: "PUBLISHED",
+    isReshareDisabledByAuthor: false,
+  };
+  if (article) {
+    payload.content = {
+      article: {
+        source: article.url,
+        title: article.title,
+        ...(article.description ? { description: article.description } : {}),
+      },
+    };
+  }
 
   const response = await fetch("https://api.linkedin.com/rest/posts", {
     method: "POST",
@@ -294,19 +347,7 @@ export async function postToLinkedIn(
       "X-Restli-Protocol-Version": "2.0.0",
       "Linkedin-Version": apiVersion,
     },
-    body: JSON.stringify({
-      // Schema (post-api-schema): author is create-only required.
-      author: record.memberUrn,
-      commentary: text,
-      visibility,
-      distribution: {
-        feedDistribution: "MAIN_FEED",
-        targetEntities: [],
-        thirdPartyDistributionChannels: [],
-      },
-      lifecycleState: "PUBLISHED",
-      isReshareDisabledByAuthor: false,
-    }),
+    body: JSON.stringify(payload),
   });
 
   if (!response.ok) {

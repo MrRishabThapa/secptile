@@ -4,8 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import type { Draft } from "@/lib/schema";
 import {
   LINKEDIN_TEXT_LIMIT,
-  stripMarkdown,
   tagsToHashtags,
+  toLinkedInText,
 } from "@/lib/linkedin-text";
 
 type Status = { configured: boolean; connected: boolean; expiresAt: string | null };
@@ -47,14 +47,31 @@ type Props = {
   onConnect: () => void;
   /** Links the LinkedIn post to this day's history record. */
   sessionId: string | null;
+  /** True once the portfolio publish succeeded (partial-failure retry friendly). */
+  portfolioPublished: boolean;
+  /** Live blog URL from the portfolio publish — the article link preview. */
+  blogUrl: string | null;
 };
 
 /**
  * Post the approved day to LinkedIn as plain text (Phase 5, official API).
- * Shown only after approval — same hard rule as portfolio publishing.
+ * Shown only after approval — same hard rule as portfolio publishing. The
+ * post button stays disabled until the portfolio post is live so it can
+ * carry the real blog URL; a failed LinkedIn attempt never republishes the
+ * blog (that flag comes from the independent publish step).
  */
-export function LinkedInShare({ draft, approved, statusKey, onConnect, sessionId }: Props) {
+export function LinkedInShare({
+  draft,
+  approved,
+  statusKey,
+  onConnect,
+  sessionId,
+  portfolioPublished,
+  blogUrl,
+}: Props) {
   const [status, setStatus] = useState<Status | null>(null);
+  /** Set in the status effect (Date.now is not render-safe). */
+  const [expired, setExpired] = useState(false);
   const [text, setText] = useState("");
   const [edited, setEdited] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -63,8 +80,10 @@ export function LinkedInShare({ draft, approved, statusKey, onConnect, sessionId
   const [error, setError] = useState<string | null>(null);
   const editedRef = useRef(false);
 
-  // Candidate text follows the draft until the user takes over.
-  const candidate = `${stripMarkdown(draft.body)}\n\n${tagsToHashtags(draft.tags)}`.trim();
+  // Candidate text follows the draft until the user takes over. The posted
+  // commentary gets little-text escaping (linkedin-text.ts); the raw
+  // `stripMarkdown` version renders on-screen in LinkedInPreview.
+  const candidate = `${toLinkedInText(draft.body)}\n\n${tagsToHashtags(draft.tags)}`.trim();
   useEffect(() => {
     if (!editedRef.current) setText(candidate);
   }, [candidate]);
@@ -74,9 +93,14 @@ export function LinkedInShare({ draft, approved, statusKey, onConnect, sessionId
     void fetch("/api/linkedin/status")
       .then((res) => (res.ok ? res.json() : null))
       .then((json: unknown) => {
-        if (!cancelled && typeof json === "object" && json !== null) {
-          setStatus(json as Status);
-        }
+        if (cancelled || typeof json !== "object" || json === null) return;
+        const next = json as Status;
+        setStatus(next);
+        setExpired(
+          Boolean(
+            next.connected && next.expiresAt && Date.parse(next.expiresAt) <= Date.now(),
+          ),
+        );
       })
       .catch(() => undefined);
     return () => {
@@ -86,7 +110,14 @@ export function LinkedInShare({ draft, approved, statusKey, onConnect, sessionId
 
   const chars = text.length;
   const overLimit = chars > LINKEDIN_TEXT_LIMIT;
-  const readyToPost = approved && !overLimit && text.trim().length > 0 && !busy;
+  const connected = Boolean(status?.connected) && !expired;
+  const readyToPost =
+    approved &&
+    portfolioPublished &&
+    connected &&
+    !overLimit &&
+    text.trim().length > 0 &&
+    !busy;
 
   async function post() {
     setBusy(true);
@@ -101,6 +132,8 @@ export function LinkedInShare({ draft, approved, statusKey, onConnect, sessionId
           visibility: "PUBLIC",
           approved: true,
           sessionId: sessionId ?? undefined,
+          articleUrl: blogUrl ?? undefined,
+          articleTitle: blogUrl ? draft.title : undefined,
         }),
       });
       const json: unknown = await response.json();
@@ -110,7 +143,15 @@ export function LinkedInShare({ draft, approved, statusKey, onConnect, sessionId
           : response.ok
             ? ""
             : `Posting failed (${response.status})`;
-      if (!response.ok) throw new Error(message);
+      const needsReauth =
+        typeof json === "object" && json !== null && "needsReauth" in json
+          ? (json as { needsReauth: unknown }).needsReauth === true
+          : false;
+      if (!response.ok) {
+        throw new Error(
+          `${message}${needsReauth ? " — reconnect LinkedIn and try again." : ""}`,
+        );
+      }
       const urn =
         typeof json === "object" && json !== null && "postUrn" in json
           ? String((json as { postUrn: unknown }).postUrn)
@@ -148,8 +189,48 @@ export function LinkedInShare({ draft, approved, statusKey, onConnect, sessionId
         </a>
       )}
 
-      {status?.connected && (
+      {(status?.configured && (!status.connected || expired)) && (
         <>
+          <a
+            href="/api/auth/linkedin/start"
+            onClick={onConnect}
+            className="w-fit rounded-lg bg-[#0a66c2] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#004182]"
+          >
+            {expired ? "Reconnect LinkedIn" : "Connect LinkedIn"}
+          </a>
+          {expired && (
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              Your LinkedIn access expired (~60-day tokens, no programmatic
+              refresh on this product) — reconnect, then try again.
+            </p>
+          )}
+        </>
+      )}
+
+      {connected && (
+        <>
+          {status?.expiresAt && (
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              Connected until{" "}
+              {new Date(status.expiresAt).toLocaleDateString(undefined, {
+                year: "numeric",
+                month: "short",
+                day: "numeric",
+              })}
+              .
+            </p>
+          )}
+          {blogUrl && (
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              Article link: <code className="font-mono">{blogUrl}</code>
+            </p>
+          )}
+          {!portfolioPublished && (
+            <p className="text-xs text-amber-700 dark:text-amber-400">
+              Publish to the portfolio first — the LinkedIn post links to the
+              live blog URL.
+            </p>
+          )}
           <textarea
             value={text}
             onChange={(event) => {
@@ -209,6 +290,12 @@ export function LinkedInShare({ draft, approved, statusKey, onConnect, sessionId
                   ? "Confirm — post to LinkedIn now"
                   : "Post to LinkedIn"}
             </button>
+          )}
+          {result && (
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              This draft was already posted — recorded in day history. Start a
+              new day to post another update.
+            </p>
           )}
         </>
       )}
