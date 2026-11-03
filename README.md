@@ -105,15 +105,77 @@ post.
 
 ## Project status
 
-| Phase | Scope                        | Status                              |
-| ----- | ---------------------------- | ----------------------------------- |
-| 0     | Scaffold                     | ✅                                  |
-| 1     | Text-only journal loop       | ✅                                  |
-| 2     | Voice input (local Whisper)  | ✅ code · ⏳ STT live verify pending |
-| 3     | Draft editor + approval      | ✅                                  |
-| 4     | Portfolio publishing (MDX)   | ✅                                  |
-| 5     | LinkedIn publishing (OAuth)  | ✅                                  |
-| 6     | Polish & streaming           | ✅ current                          |
+| Phase                                  | Scope                        | Status                                |
+| -------------------------------------- | ---------------------------- | ------------------------------------- |
+| 0                                      | Scaffold                     | ✅                                    |
+| 1                                      | Text-only journal loop       | ✅                                    |
+| 2                                      | Voice input (local Whisper)  | ✅ code · ⏳ STT live verify pending   |
+| 3                                      | Draft editor + approval      | ✅                                    |
+| 4                                      | Portfolio publishing (MDX)   | ✅                                    |
+| 5                                      | LinkedIn publishing          | ✅ (route contract, OIDC scopes)      |
+| 6                                      | Desktop voice assistant      | ✅ code · ⏳ wake models to train      |
+| 7                                      | Polish & streaming           | ✅                                    |
+
+## Phase 6 — desktop voice assistant
+
+The app and a local Python daemon (`daemon/`) run as systemd `--user`
+services. The daemon wakes on your trained wake phrase, records with an
+energy VAD until you stop talking, transcribes through this app's existing
+whisper route (`/api/transcribe`, no second model loaded), and either:
+
+- `open system` / `open secptile` → focuses an existing Hyprland window that
+  matches the config, or launches it (`hyprctl`, never duplicate);
+- `close system` / `hide` → closes the matched window;
+- anything else → straight into the journal as spoken text (only on the idle
+  home screen).
+
+### Setup (single command)
+
+```bash
+./daemon/install.sh            # venv + config + chime + mute + systemd units
+```
+
+Then follow "Train the wake words" and finish with
+`systemctl --user enable --now secptile-daemon.service`. Uninstall:
+
+```bash
+./daemon/uninstall.sh
+```
+
+### Train the wake words (offline, livekit-wakeword)
+
+Verified source: [livekit/livekit-wakeword](https://github.com/livekit/livekit-wakeword)
+(Apache-2.0; custom-phrase training uses the same one-command CLI as their
+README — do **not** invent flags, copy from the repo's own `Install`/
+`Training a Custom Wake Word` section). The pipeline is:
+
+```bash
+pip install "livekit-wakeword[train,eval,export]"   # per the repo docs
+# TODO(prompt in CLI): train and export for "hey secptile" and "hey secp"
+# put the .onnx files in ~/.secptile/assistant/models/
+```
+
+Only two openWakeWord-family phrases, per `wake.models` in the config. The
+ONNX files are yours — never committed.
+
+### Privacy (in the design, not just documented)
+
+- While **waiting** for the wake phrase, frames go straight to the ONNX
+  model in RAM: **nothing on disk, nothing anywhere else**.
+- The mic stream is `InputStream`-based; the mute (`secptile-mute`) *fully
+  closes the stream* (no capture at all) until unmuted.
+- Everything (audio, transcript, chime) stays on your machine; the app and
+  daemon both bind to localhost.
+- The live status (`listening / transcribing / sent / muted / stopped`) is
+  shown in the app UI and in `journalctl --user -u secptile-daemon`.
+- Voice can **never** publish: the transcript lands in the normal journal
+  flow, whose publish actions stay clicks-only.
+
+Known limitations: deterministic energy VAD may unwrap a long pause early
+(set `silence_hangover_seconds` up); "open system" only fires when starting
+a sentence; if the utterance contains the exact wake phrase it is a false
+hit — thresholds and negatives tuning help; piper TTS is off by default;
+whisper must be reachable at the URL the whisper service sets.
 
 See [AGENTS.md](./AGENTS.md) for the project rules, phase plan, and conventions.
 
