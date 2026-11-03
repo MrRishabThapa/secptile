@@ -1,0 +1,15 @@
+[Unit]
+Description=Secptile journal app (Next.js, localhost only)
+# Starts at login and restarts if it crashes.
+After=network-online.target
+
+[Service]
+Type=simple
+# NOTE: install.sh rewrites these two lines to your HOME/pnpm paths if needed.
+WorkingDirectory=%h/Projects/secptile
+ExecStart=%h/.local/share/pnpm/pnpm start -- -p 3100
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target

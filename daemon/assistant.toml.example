@@ -1,0 +1,50 @@
+# Secptile desktop assistant configuration (Phase 6).
+# Copy to ~/.secptile/assistant.toml (install.sh does this) and edit there.
+# Never commit your real copy: it can carry the shared secret.
+
+[app]
+base_url = "http://localhost:3100"
+transcribe_path = "/api/transcribe"          # Phase 2 whisper proxy, reused as-is
+status_path = "/api/assistant/status"        # daemon -> UI status events
+transcript_path = "/api/assistant/transcript" # journal forwards land here
+# Shared secret required on every daemon request. Leave "" to read it from the
+# SECPTILE_ASSISTANT_SECRET environment variable instead (recommended).
+secret = ""
+
+[wake]
+# .onnx models trained with livekit-wakeword (see README) — never committed.
+models = [
+    "~/.secptile/assistant/models/hey-secptile.onnx",
+    "~/.secptile/assistant/models/hey-secp.onnx",
+]
+# Scores >= threshold fire the wake phrase (0.0–1.0; raise = fewer false hits).
+threshold = 0.5
+cooldown_seconds = 3
+
+[capture]
+sample_rate = 16000          # models expect 16 kHz mono int16
+max_seconds = 120            # hard stop even if you keep talking
+lead_in_seconds = 0.6        # speech is pre-rolled back before the chime
+# Energy VAD: RMS below threshold counts as silence…
+silence_threshold = 0.008
+# …and speech ends after this long without a loud frame.
+silence_hangover_seconds = 1.2
+
+[feedback]
+# Played with `paplay` (PipeWire) — a short chime after the wake phrase.
+chime = "~/.secptile/assistant/chime.wav"
+# Optional spoken replies (Piper). Off by default; fabric/piper not required.
+tts = false
+# Only used when tts = true; "{text}" is replaced by the spoken reply.
+tts_command = "printf '%s\\n' \"{text}\" | piper --model en-us-amy-low --output-raw | aplay -q -r 16000 -f S16_LE"
+
+[window]
+# hyprctl client match: case-insensitive substring of class OR title; used for
+# focus / close instead of spawning duplicates.
+match = ["secptile", "localhost:3100"]
+# Executed via `hyprctl dispatch exec …` when no matching window exists.
+launch_command = "xdg-open http://localhost:3100"
+
+[misc]
+# Touched by `secptile-mute`; presence fully stops the mic stream.
+mute_file = "~/.secptile/assistant-mute"

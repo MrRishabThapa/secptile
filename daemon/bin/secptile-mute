@@ -1,0 +1,47 @@
+#!/usr/bin/env python3
+"""Secptile assistant mute toggle (Phase 6).
+
+Toggles the mute flag the daemon watches ("fully stops the mic stream" — no
+frames are even read while muted). Works standalone, so a Hyprland keybind
+can call it without any shell plumbing. With --status it prints ON/OFF.
+
+  bind = SUPER SHIFT, M, exec, secptile-mute
+"""
+from __future__ import annotations
+
+import argparse
+import os
+import sys
+from pathlib import Path
+
+DEFAULT_MUTE_FILE = "~/.secptile/assistant-mute"
+
+
+def mute_path(explicit: str | None) -> Path:
+    return Path(explicit or os.environ.get("SECPTILE_MUTE_FILE", DEFAULT_MUTE_FILE)).expanduser()
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Toggle Secptile assistant mic mute.")
+    parser.add_argument("action", nargs="?", choices=["toggle", "on", "off", "status"], default="toggle")
+    parser.add_argument("file", nargs="?", help="optional mute file path (default ~/.secptile/assistant-mute)")
+    args = parser.parse_args()
+
+    target = mute_path(args.file)
+    if args.action == "status":
+        print("MUTED" if target.exists() else "LISTENING")
+        return 0
+    if args.action == "on" or (args.action == "toggle" and not target.exists()):
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text("muted\n")
+        print("Secptile assistant MUTED — mic stream stopped.")
+        return 0
+    if target.exists():
+        target.unlink()
+    print("Secptile assistant LISTENING.")
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
