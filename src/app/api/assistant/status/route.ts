@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { connection } from "next/server";
 import { z } from "zod";
 import {
   daemonAuthorized,
@@ -7,7 +8,8 @@ import {
   readStatus,
 } from "@/lib/assistant";
 
-export const dynamic = "force-dynamic"; // live status, never cached
+// cacheComponents (this Next version) rejects the old `dynamic` segment
+// export; `await connection()` is the documented way to opt out of prerender.
 
 const statusBodySchema = z.object({
   id: z.string().min(1),
