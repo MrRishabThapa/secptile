@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+import { PartyPopper } from "lucide-react";
 
 type PendingComment = {
   id: number;
@@ -13,6 +14,24 @@ type PendingComment = {
 
 const inputClass =
   "w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder-zinc-400 focus:border-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-300/50 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder-zinc-600";
+
+/** One /api/feedback pass. Resolves with the parsed envelope, or throws. */
+async function requestFeedback(): Promise<{
+  configured: boolean;
+  pending: PendingComment[];
+}> {
+  const response = await fetch("/api/feedback");
+  const json: unknown = await response.json().catch(() => null);
+  const message =
+    typeof json === "object" && json !== null && "error" in json
+      ? String((json as { error: unknown }).error)
+      : `Request failed (${response.status})`;
+  if (!response.ok) throw new Error(message);
+  if (typeof json !== "object" || json === null) {
+    throw new Error("The feedback response was malformed.");
+  }
+  return json as { configured: boolean; pending: PendingComment[] };
+}
 
 export default function FeedbackPage() {
   const [loading, setLoading] = useState(true);
@@ -27,18 +46,30 @@ export default function FeedbackPage() {
   const [nameDraft, setNameDraft] = useState("");
   const [messageDraft, setMessageDraft] = useState("");
 
-  const load = useCallback(async function load() {
+  useEffect(() => {
+    const signal = { cancelled: false };
+    void requestFeedback()
+      .then((data) => {
+        if (signal.cancelled) return;
+        setConfigured(data.configured);
+        setPending(data.pending);
+        setLoading(false);
+      })
+      .catch((cause: unknown) => {
+        if (signal.cancelled) return;
+        setError(cause instanceof Error ? cause.message : "Could not load feedback.");
+        setLoading(false);
+      });
+    return () => {
+      signal.cancelled = true;
+    };
+  }, []);
+
+  async function refresh() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch("/api/feedback");
-      const json: unknown = await response.json();
-      const message =
-        typeof json === "object" && json !== null && "error" in json
-          ? String((json as { error: unknown }).error)
-          : `Request failed (${response.status})`;
-      if (!response.ok) throw new Error(message);
-      const data = json as { configured: boolean; pending: PendingComment[] };
+      const data = await requestFeedback();
       setConfigured(data.configured);
       setPending(data.pending);
     } catch (cause) {
@@ -46,11 +77,7 @@ export default function FeedbackPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  }
 
   async function act(
     id: number,
@@ -140,7 +167,7 @@ export default function FeedbackPage() {
         </div>
         <button
           type="button"
-          onClick={() => void load()}
+          onClick={() => void refresh()}
           disabled={loading}
           className="rounded-lg border border-zinc-300 px-3 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-100 disabled:opacity-40 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
         >
@@ -174,9 +201,7 @@ export default function FeedbackPage() {
 
       {!loading && configured && pending.length === 0 && (
         <div className="rounded-xl border border-dashed border-zinc-300 p-10 text-center dark:border-zinc-700">
-          <p className="text-4xl" aria-hidden>
-            🎉
-          </p>
+          <PartyPopper aria-hidden className="mx-auto h-10 w-10 text-zinc-400 dark:text-zinc-600" />
           <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
             All caught up — no pending comments on your blog.
           </p>

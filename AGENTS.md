@@ -95,7 +95,7 @@ After each phase: list the files created (in commit order), how to run and test 
 ## 9. Project specifics
 
 - Project name: **Secptile**.
-- UI structure: a shared navbar (`src/components/nav-bar.tsx`) anchors the pages — **"Today's Tea"** (`/`, blog editor + LinkedIn share) and **"Chat with Secptile"** (`/chat`, voice journaling). The draft is handed from Chat to Today's Tea via sessionStorage when the story is complete. Built to grow: new surfaces get their own navbar entry.
+- UI structure: a shared navbar (`src/components/nav-bar.tsx`) anchors the pages — **"Chat"** (`/`, voice journaling; **this is the page the app opens on**) and **"Today's Tea"** (`/tea`, blog editor + LinkedIn share) plus **"Feedback"** (`/feedback`, pending blog-comment review). The draft is handed from Chat to Today's Tea via sessionStorage when the story is complete; a Past-days row click opens the day in Tea for publish/verify, double-click offers removal. Built to grow: new surfaces get their own navbar entry. No emoji in the UI — use lucide icons.
 - Initialization (wake) voice command: **"hey secptile i am here"** (implemented with voice in Phase 2; detectable in transcript text from then on).
 - App's voice response to the wake command: **"welcome boss, how was your day?"**
 

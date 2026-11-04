@@ -28,6 +28,7 @@ export async function POST(request: Request) {
           title: phase.draft.title,
           body: phase.draft.body,
           tags: phase.draft.tags,
+          linkedin: phase.draft.linkedin,
           transcript: parsed.data.transcript ?? undefined,
         });
       } catch (historyError) {

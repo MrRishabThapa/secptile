@@ -4,7 +4,7 @@
  * small and local — data storage requirements of the LinkedIn API are met by
  * keeping it out of any repo and out of the client until requested.
  */
-import { mkdir, readdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import { z } from "zod";
@@ -15,6 +15,8 @@ const recordSchema = z.object({
   title: z.string(),
   body: z.string(),
   tags: z.array(z.string()),
+  /** Older records predate the field — empty means "derive from body" in the UI. */
+  linkedin: z.string().default(""),
   /** transcript is private context — kept locally, sent nowhere else */
   transcript: z.string().optional(),
   portfolioFile: z.string().nullable().default(null),
@@ -56,6 +58,7 @@ async function existing(sessionId: string): Promise<HistoryRecord | null> {
 }
 
 export type DraftInput = Pick<HistoryRecord, "title" | "body" | "tags"> & {
+  linkedin?: string;
   transcript?: string;
 };
 
@@ -72,6 +75,7 @@ export async function upsertDraftSession(
     title: draft.title,
     body: draft.body,
     tags: draft.tags,
+    linkedin: draft.linkedin ?? prior?.linkedin ?? "",
     transcript: draft.transcript ?? prior?.transcript,
     portfolioFile: prior?.portfolioFile ?? null,
     portfolioCommit: prior?.portfolioCommit ?? null,
@@ -102,6 +106,15 @@ export async function updateStatus(
     linkedInUrn: status.linkedInUrn ?? prior.linkedInUrn,
   });
   await writeFile(filePath(sessionId), `${JSON.stringify(record, null, 2)}\n`);
+}
+
+/** Remove a day's record entirely (double-click remove on Past days). */
+export async function deleteHistoryEntry(sessionId: string): Promise<void> {
+  try {
+    await rm(filePath(sessionId), { force: true });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
 }
 
 export type HistoryEntry = Omit<HistoryRecord, "sessionId"> & {
