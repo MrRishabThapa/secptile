@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { PublishError, publishInputSchema, publishPost } from "@/lib/portfolio";
-import { updateStatus } from "@/lib/history";
+import { PublishError, publishInputSchema, publishPost } from "@/lib/blog";
 
 export async function POST(request: Request) {
   let raw: unknown;
@@ -20,17 +19,6 @@ export async function POST(request: Request) {
 
   try {
     const result = await publishPost(parsed.data);
-    // Best-effort history cross-reference (Phase 6).
-    if (parsed.data.sessionId) {
-      try {
-        await updateStatus(parsed.data.sessionId, {
-          portfolioFile: result.file,
-          portfolioCommit: result.commitHash ?? undefined,
-        });
-      } catch (historyError) {
-        console.error("[api/publish] history update failed:", historyError);
-      }
-    }
     return NextResponse.json(result);
   } catch (error) {
     if (error instanceof PublishError) {
@@ -38,7 +26,7 @@ export async function POST(request: Request) {
     }
     console.error("[api/publish] unexpected error:", error);
     return NextResponse.json(
-      { error: "Unexpected server error while publishing." },
+      { error: "Unexpected server error while saving the post." },
       { status: 500 },
     );
   }
