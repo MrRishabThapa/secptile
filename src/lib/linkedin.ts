@@ -304,14 +304,99 @@ export type LinkedInPostResult = {
 };
 
 /**
- * Create a text (or text+article-link) member post via POST /rest/posts. Only
- * ever called with text the owner explicitly approved (hard rule 1 — enforced
- * in the route).
+ * Exactly one of `article` / `image` may be set. Image flow (docs: Images API,
+ * li-lms-2026-10): POST /rest/images?action=initializeUpload → value.uploadUrl
+ * + value.image URN; PUT the raw bytes to that URL WITH the OAuth header
+ * (image uploads, unlike video, require the Authorization header); then create
+ * the post with content.media.id = the image URN. Formats: JPEG/PNG/GIF only.
+ */
+export type LinkedInPostOptions = {
+  article?: LinkedInArticle;
+  image?: {
+    bytes: Uint8Array;
+    mime: string;
+    /** ≤120 chars recommended (schema allows 4086). */
+    altText: string;
+  };
+};
+
+type ImageInitResponse = {
+  value?: { uploadUrl?: string; image?: string };
+};
+
+/**
+ * Register + upload an image and return its urn:li:image:… URN.
+ * Owner is the member — w_member_social tokens are write-only on rest/images,
+ * which is exactly what this flow does (docs: permissions).
+ */
+async function uploadImage(
+  record: LinkedInTokenRecord,
+  apiVersion: string,
+  image: NonNullable<LinkedInPostOptions["image"]>,
+): Promise<string> {
+  const headers = {
+    Authorization: `Bearer ${record.accessToken}`,
+    "Content-Type": "application/json",
+    "X-Restli-Protocol-Version": "2.0.0",
+    "Linkedin-Version": apiVersion,
+  };
+
+  const init = await fetch(
+    "https://api.linkedin.com/rest/images?action=initializeUpload",
+    {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        initializeUploadRequest: { owner: record.memberUrn },
+      }),
+    },
+  );
+  if (!init.ok) {
+    const detail = (await init.text()).split("\n")[0]?.trim();
+    throw new LinkedInError(
+      `Could not register the photo upload (${init.status}${detail ? `: ${detail}` : ""}).`,
+      502,
+      init.status === 401,
+    );
+  }
+  const initJson: unknown = await init.json().catch(() => null);
+  const uploadUrl =
+    (initJson as ImageInitResponse | null)?.value?.uploadUrl ?? null;
+  const imageUrn = (initJson as ImageInitResponse | null)?.value?.image ?? null;
+  if (!uploadUrl || !imageUrn) {
+    throw new LinkedInError(
+      "LinkedIn's upload registration response was malformed (missing uploadUrl/image).",
+      502,
+    );
+  }
+
+  const upload = await fetch(uploadUrl, {
+    method: "PUT",
+    headers: {
+      Authorization: `Bearer ${record.accessToken}`,
+      "Content-Type": image.mime,
+    },
+    body: new Uint8Array(image.bytes),
+  });
+  if (!upload.ok) {
+    const detail = (await upload.text()).split("\n")[0]?.trim();
+    throw new LinkedInError(
+      `Uploading the photo failed (${upload.status}${detail ? `: ${detail}` : ""}).`,
+      502,
+    );
+  }
+  return imageUrn;
+}
+
+/**
+ * Create a member post via POST /rest/posts — plain text, optionally with a
+ * link-preview article or an attached image. Only ever called with text the
+ * owner explicitly approved (hard rule 1 — enforced in the route).
  */
 export async function postToLinkedIn(
   text: string,
   visibility: PostVisibility,
-  article?: LinkedInArticle,
+  options: LinkedInPostOptions = {},
 ): Promise<LinkedInPostResult> {
   const record = await getAccessToken();
   const { apiVersion } = config();
@@ -329,12 +414,17 @@ export async function postToLinkedIn(
     lifecycleState: "PUBLISHED",
     isReshareDisabledByAuthor: false,
   };
-  if (article) {
+  if (options.image) {
+    const mediaUrn = await uploadImage(record, apiVersion, options.image);
+    payload.content = { media: { id: mediaUrn, altText: options.image.altText } };
+  } else if (options.article) {
     payload.content = {
       article: {
-        source: article.url,
-        title: article.title,
-        ...(article.description ? { description: article.description } : {}),
+        source: options.article.url,
+        title: options.article.title,
+        ...(options.article.description
+          ? { description: options.article.description }
+          : {}),
       },
     };
   }
