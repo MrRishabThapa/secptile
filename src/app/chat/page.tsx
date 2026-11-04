@@ -2,18 +2,13 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { z } from "zod";
 import { TranscriptForm } from "@/components/transcript-form";
 import { AssistantBar } from "@/components/assistant-bar";
 import { QuestionsStep } from "@/components/questions-step";
 import { WAKE_GREETING, detectWakePhrase } from "@/lib/wake";
-import { phaseSchema, type Draft } from "@/lib/schema";
+import { callJournalStream, type ApiBody, type Draft } from "@/lib/journal-client";
 
 type Step = "input" | "questions";
-
-/** Shape of /api/journal's success body — re-validated client-side. */
-const apiBodySchema = phaseSchema.extend({ sessionId: z.string().min(1) });
-type ApiBody = z.infer<typeof apiBodySchema>;
 
 /**
  * Handoff to Today's Tea once a draft exists: the draft + session ride in
@@ -34,113 +29,72 @@ function stashHandoff(sessionId: string | null, draft: Draft) {
 
 export default function ChatPage() {
   const router = useRouter();
-  const [step, setStep] = useState<Step>("input");
+  /**
+   * Returning from Today's Tea: a regeneration note left the loop with open
+   * questions. Stashed by the tea page under "secptile:questions" before the
+   * navigation; read ONCE here and cleared.
+   */
+  const [restored] = useState(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const raw = sessionStorage.getItem("secptile:questions");
+      if (!raw) return null;
+      sessionStorage.removeItem("secptile:questions");
+      const parsed: unknown = JSON.parse(raw);
+      if (
+        typeof parsed === "object" &&
+        parsed !== null &&
+        typeof (parsed as { sessionId?: unknown }).sessionId === "string" &&
+        Array.isArray((parsed as { questions?: unknown }).questions)
+      ) {
+        return parsed as { sessionId: string; questions: string[] };
+      }
+    } catch {
+      /* ignore */
+    }
+    return null;
+  });
+  const [step, setStep] = useState<Step>(restored ? "questions" : "input");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [questions, setQuestions] = useState<string[]>([]);
+  const [sessionId, setSessionId] = useState<string | null>(restored?.sessionId ?? null);
+  const [questions, setQuestions] = useState<string[]>(restored?.questions ?? []);
   const [transcript, setTranscript] = useState("");
   const [greeting, setGreeting] = useState<string | null>(null);
 
   /** Streaming feedback line while OpenCode thinks. */
   const [progress, setProgress] = useState<string | null>(null);
 
-  /** Streaming variant: NDJSON lines — progress ping(s), then the phase. */
-  async function callApi(body: Record<string, unknown>) {
-    setBusy(true);
-    setError(null);
-    setProgress(null);
+  async function startJournal(input: { transcript: string; privateNotes?: string }) {
     try {
-      const response = await fetch("/api/journal/stream", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      if (!response.ok) {
-        // Pre-flight validation errors arrive as plain JSON.
-        const json: unknown = await response.json().catch(() => null);
-        const message =
-          typeof json === "object" && json !== null && "error" in json
-            ? String((json as { error: unknown }).error)
-            : `Request failed (${response.status})`;
-        throw new Error(message);
-      }
-      if (!response.body) throw new Error("The server stopped streaming early.");
-
-      const reader = response.body
-        .pipeThrough(new TextDecoderStream())
-        .getReader();
-      let buffer = "";
-      let phase: ApiBody | null = null;
-      while (phase === null) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += value;
-        let index: number;
-        while ((index = buffer.indexOf("\n")) !== -1 && phase === null) {
-          const line = buffer.slice(0, index).trim();
-          buffer = buffer.slice(index + 1);
-          if (!line) continue;
-          const event: unknown = JSON.parse(line);
-          if (
-            typeof event === "object" &&
-            event !== null &&
-            "type" in event &&
-            (event as { type: unknown }).type === "progress"
-          ) {
-            const message = (event as { type: unknown; message?: unknown }).message;
-            setProgress(typeof message === "string" ? message : null);
-            continue;
-          }
-          if (
-            typeof event === "object" &&
-            event !== null &&
-            "type" in event &&
-            (event as { type: unknown }).type === "error"
-          ) {
-            let message = "The journal response was malformed. Try again.";
-            if (typeof event === "object" && event !== null) {
-              const err = (event as { error?: unknown }).error;
-              if (typeof err === "string") message = err;
-            }
-            throw new Error(message);
-          }
-          // Final phase line — validate exactly like the non-streamed route.
-          const candidate = apiBodySchema.safeParse(event);
-          if (!candidate.success) {
-            throw new Error("The journal response was malformed. Try again.");
-          }
-          phase = candidate.data;
-        }
-      }
-      reader.releaseLock();
-      if (!phase) throw new Error("The journal response was malformed. Try again.");
-      return phase;
+      setBusy(true);
+      const data = await callJournalStream(
+        {
+          transcript: input.transcript,
+          privateNotes: input.privateNotes,
+        },
+        setProgress,
+      );
+      handlePhase(data.sessionId, data);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Something went wrong.");
     } finally {
       setBusy(false);
       setProgress(null);
     }
   }
 
-  async function startJournal(input: { transcript: string; privateNotes?: string }) {
-    try {
-      const data = await callApi({
-        transcript: input.transcript,
-        privateNotes: input.privateNotes,
-      });
-      handlePhase(data.sessionId, data);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Something went wrong.");
-    }
-  }
-
   async function sendAnswers(answers: string[]) {
     if (!sessionId) return;
     try {
-      const data = await callApi({ sessionId, answers });
+      setBusy(true);
+      const data = await callJournalStream({ sessionId, answers }, setProgress);
       handlePhase(sessionId, data);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Something went wrong.");
+    } finally {
+      setBusy(false);
+      setProgress(null);
     }
   }
 
