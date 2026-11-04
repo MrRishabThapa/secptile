@@ -69,6 +69,14 @@ Publishing environment (in `.env.local`):
 
 - `SECPTILE_BLOG_DIR` — optional directory for the SQLite blog DB (default `~/.secptile/blog`; file `blog.db`; cover photos stored as rows inside it)
 
+Feedback environment (in `.env.local`) — Secptile reviews the pending comments
+of the portfolio blog, whose database is a Supabase project (URL + service_role
+key from the Supabase dashboard → Settings → API; the service_role key
+bypasses RLS and must stay server-side in `.env.local` only):
+
+- `SUPABASE_URL` — the portfolio blog's Supabase project URL
+- `SUPABASE_SERVICE_ROLE_KEY` — data API service_role key (never commit, never expose)
+
 LinkedIn environment (in `.env.local`) — create the app at
 [linkedin.com/developers](https://www.linkedin.com/developers), request both
 **"Sign In with LinkedIn using OpenID Connect"** (`openid`, `profile` — the
