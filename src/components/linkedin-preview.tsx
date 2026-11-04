@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import {
   LINKEDIN_TEXT_LIMIT,
+  stripTrailingHashtags,
   tagsToHashtags,
 } from "@/lib/linkedin-text";
 
@@ -24,7 +25,10 @@ type Props = {
 
 export function LinkedInPreview({ text, tags, photoUrl }: Props) {
   const hashtags = useMemo(() => tagsToHashtags(tags), [tags]);
-  const chars = text.length + (hashtags ? ` ${hashtags}`.length : 0);
+  // Legacy drafts may carry their own trailing tag line — strip it so the
+  // app-owned hashtag block below renders exactly once.
+  const display = useMemo(() => stripTrailingHashtags(text), [text]);
+  const chars = display.length + (hashtags ? `\n${hashtags}`.length : 0);
   const overLimit = chars > LINKEDIN_TEXT_LIMIT;
 
   return (
@@ -55,9 +59,9 @@ export function LinkedInPreview({ text, tags, photoUrl }: Props) {
 
           {/* hook + body */}
           <div className="mt-3 whitespace-pre-wrap break-words text-sm leading-relaxed text-zinc-800 dark:text-zinc-200">
-            {text}
+            {display}
             {hashtags && (
-              <span className="text-[#0a66c2] dark:text-[#4b9ce8]"> {hashtags}</span>
+              <span className="text-[#0a66c2] dark:text-[#4b9ce8]">{`\n${hashtags}`}</span>
             )}
           </div>
         </div>
