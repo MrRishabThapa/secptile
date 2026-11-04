@@ -137,6 +137,34 @@ export function savePost(input: SavePostInput): string {
   if (!photo) {
     throw new BlogError("The cover photo is missing — attach it again.", 400);
   }
+  const now = new Date().toISOString();
+  const tagsJson = JSON.stringify(input.tags);
+
+  // Idempotent: re-publishing the same journal session updates its record
+  // instead of stacking duplicates in the tracker.
+  if (input.sessionId) {
+    const existing = conn
+      .prepare("SELECT id FROM posts WHERE session_id = ?")
+      .get(input.sessionId) as { id: string } | undefined;
+    if (existing) {
+      conn
+        .prepare(
+          `UPDATE posts SET title = ?, body = ?, linkedin_text = ?, tags = ?,
+          photo_id = ?, created_at = ? WHERE id = ?`,
+        )
+        .run(
+          input.title,
+          input.body,
+          input.linkedinText,
+          tagsJson,
+          input.photoId,
+          now,
+          existing.id,
+        );
+      return existing.id;
+    }
+  }
+
   const id = randomUUID();
   conn
     .prepare(
@@ -149,9 +177,9 @@ export function savePost(input: SavePostInput): string {
       input.title,
       input.body,
       input.linkedinText,
-      JSON.stringify(input.tags),
+      tagsJson,
       input.photoId,
-      new Date().toISOString(),
+      now,
     );
   return id;
 }
@@ -164,6 +192,38 @@ export function markLinkedInBySession(sessionId: string, urn: string): void {
       "UPDATE posts SET linkedin_urn = ?, linkedin_posted_at = ? WHERE session_id = ?",
     )
     .run(urn, new Date().toISOString(), sessionId);
+}
+
+/** Remove one post from the tracker (per-row delete). */
+export function deletePost(id: string): void {
+  const conn = db();
+  conn.prepare("DELETE FROM posts WHERE id = ?").run(id);
+}
+
+/**
+ * Remove duplicate posts, keeping the newest per journal session.
+ * Rows without a session id are left untouched.
+ * Returns how many were deleted and how many remain.
+ */
+export function deleteDuplicatePosts(): { deleted: number; kept: number } {
+  const conn = db();
+  const dups = conn
+    .prepare(
+      `SELECT p1.id FROM posts p1
+       WHERE p1.session_id IS NOT NULL
+       AND p1.created_at < (
+         SELECT MAX(p2.created_at) FROM posts p2
+         WHERE p2.session_id = p1.session_id
+       )`,
+    )
+    .all() as Array<{ id: string }>;
+  for (const row of dups) {
+    conn.prepare("DELETE FROM posts WHERE id = ?").run(row.id);
+  }
+  const kept = conn
+    .prepare("SELECT COUNT(*) AS c FROM posts")
+    .get() as { c: number };
+  return { deleted: dups.length, kept: kept.c };
 }
 
 /** Increment the view counter for a post (thread opened / cover fetched). */
