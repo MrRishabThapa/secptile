@@ -262,7 +262,7 @@ export function LinkedInShare({
               role="status"
               className="text-xs text-emerald-700 dark:text-emerald-400"
             >
-              Posted ✓ {result !== "posted" && <code className="font-mono">{result}</code>}
+              Posted{result !== "posted" && <code className="ml-1 font-mono">{result}</code>}
               {edited && " — with your edited text"}
               {attachPhoto && photoId && " — with the cover photo"}
             </p>
