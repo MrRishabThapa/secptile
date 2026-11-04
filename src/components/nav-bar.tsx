@@ -2,15 +2,17 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import Image from "next/image";
+import logo from "@/assets/logo.png";
 
 /**
  * Shared navigation. Built to grow: add entries here as new surfaces land
- * (assistant, stats, settings…). Blog/LinkedIn live together on Today's Tea;
- * voice journaling lives on Chat; portfolio blog comment review on Feedback.
+ * (assistant, stats, settings…). Chat (voice journaling) opens at the root;
+ * the blog/LinkedIn flow lives on Today's Tea; comment review on Feedback.
  */
 const LINKS = [
-  { href: "/", label: "Today's Tea" },
-  { href: "/chat", label: "Chat with Secptile" },
+  { href: "/", label: "Chat" },
+  { href: "/tea", label: "Today's Tea" },
   { href: "/feedback", label: "Feedback" },
 ];
 
@@ -28,7 +30,15 @@ export function NavBar() {
           href="/"
           className="mr-4 flex items-center gap-2 text-base font-semibold tracking-tight text-zinc-900 dark:text-zinc-50"
         >
-          <span aria-hidden>🦎</span> Secptile
+          <Image
+            src={logo}
+            alt=""
+            aria-hidden
+            width={26}
+            height={26}
+            className="rounded-md object-contain"
+          />
+          Secptile
         </Link>
         {LINKS.map((link) => {
           const active = pathname === link.href;
