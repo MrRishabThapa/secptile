@@ -17,6 +17,11 @@ type PublishResult = {
   id: string;
   /** Served cover photo (/api/photos/{photoId}). */
   photoUrl: string;
+  portfolio: {
+    synced: boolean;
+    url: string | null;
+    error: string | null;
+  };
 };
 
 /** Chat handoff: one draft, carried by sessionStorage ("secptile:handoff"). */
@@ -252,6 +257,11 @@ export default function TodaysTea() {
         >
           Saved to Today&apos;s Tea — the post and its cover photo are in your
           blog database. Share it on LinkedIn when you&apos;re ready.
+          {publishResult.portfolio.synced
+            ? " It is also live on your blog site."
+            : publishResult.portfolio.error
+              ? ` It could not reach your blog site (${publishResult.portfolio.error}) — retry Publish after fixing it.`
+              : ""}
         </div>
       )}
       {approved && !publishResult && (

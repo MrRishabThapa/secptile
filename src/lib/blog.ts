@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { BlogError, savePost } from "./blog-db";
+import { syncToPortfolio } from "./portfolio-blog";
 
 export class PublishError extends Error {
   readonly status: number;
@@ -34,12 +35,20 @@ export type PublishResult = {
   id: string;
   /** URL the stored photo is served from (/api/photos/{photoId}). */
   photoUrl: string;
+  /** Best-effort mirror to the portfolio site's Supabase (see portfolio-blog). */
+  portfolio: {
+    synced: boolean;
+    /** Public cover-photo URL on the blog site, when synced. */
+    url: string | null;
+    error: string | null;
+  };
 };
 
 /**
  * Save the approved post (title, body, LinkedIn text, tags, cover photo)
- * into the local SQLite blog DB. Publishing is exactly this — no repos,
- * no commits, nothing pushed anywhere.
+ * into the local SQLite blog DB, then best-effort mirror it to the
+ * portfolio site so rishabthapa.com.np/blog shows it. A failed mirror
+ * never fails the publish — the local DB is the source of truth.
  */
 export async function publishPost(input: PublishInput): Promise<PublishResult> {
   if (input.approved !== true) {
@@ -71,5 +80,16 @@ export async function publishPost(input: PublishInput): Promise<PublishResult> {
     throw error;
   }
 
-  return { id, photoUrl: `/api/photos/${input.photoId.trim()}` };
+  const portfolio = await syncToPortfolio({
+    title: input.title.trim(),
+    body: input.body.trim(),
+    tags: input.tags,
+    photoId: input.photoId.trim(),
+  });
+
+  return {
+    id,
+    photoUrl: `/api/photos/${input.photoId.trim()}`,
+    portfolio,
+  };
 }
