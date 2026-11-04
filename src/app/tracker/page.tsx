@@ -1,16 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import {
-  Calendar,
-  ChevronRight,
   Eye,
   FileText,
-  Filter,
-  Image,
-  LayoutList,
+  RefreshCw,
   Search,
   Share2,
+  Trash2,
 } from "lucide-react";
 
 type Post = {
@@ -42,6 +40,15 @@ export default function TrackerPage() {
   const [dateTo, setDateTo] = useState("");
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
+
+  const [removeId, setRemoveId] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [dedupeBusy, setDedupeBusy] = useState(false);
+  const [dedupeResult, setDedupeResult] = useState<{
+    deleted: number;
+    kept: number;
+  } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -76,6 +83,62 @@ export default function TrackerPage() {
       return true;
     });
   }, [posts, dateFrom, dateTo, search, filter]);
+
+  async function refresh() {
+    setError(null);
+    try {
+      const response = await fetch("/api/posts");
+      const json: unknown = await response.json();
+      const postsData =
+        typeof json === "object" && json !== null && "posts" in json
+          ? (json as { posts?: unknown }).posts
+          : undefined;
+      if (Array.isArray(postsData)) setPosts(postsData);
+    } catch {
+      setPosts([]);
+    }
+  }
+
+  async function remove(id: string) {
+    setBusyId(id);
+    setError(null);
+    try {
+      const response = await fetch(`/api/posts/${id}`, { method: "DELETE" });
+      if (!response.ok) throw new Error(`Delete failed (${response.status})`);
+      setPosts((list) => list.filter((post) => post.id !== id));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Delete failed.");
+    } finally {
+      setBusyId(null);
+      setRemoveId(null);
+    }
+  }
+
+  async function cleanupDuplicates() {
+    setDedupeBusy(true);
+    setError(null);
+    setDedupeResult(null);
+    try {
+      const response = await fetch("/api/posts/cleanup-duplicates", {
+        method: "POST",
+      });
+      const json: unknown = await response.json();
+      if (!response.ok) {
+        const message =
+          typeof json === "object" && json !== null && "error" in json
+            ? String((json as { error: unknown }).error)
+            : `Cleanup failed (${response.status})`;
+        throw new Error(message);
+      }
+      const result = json as { deleted: number; kept: number };
+      setDedupeResult(result);
+      await refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Cleanup failed.");
+    } finally {
+      setDedupeBusy(false);
+    }
+  }
 
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 px-6 py-10 font-sans">
@@ -129,7 +192,43 @@ export default function TrackerPage() {
             </select>
           </div>
         </div>
+
+        <div className="mt-4 flex items-center gap-3">
+          <button
+            type="button"
+            disabled={dedupeBusy}
+            onClick={() => void cleanupDuplicates()}
+            className="rounded-lg border border-zinc-300 px-3 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-100 disabled:opacity-40 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+          >
+            {dedupeBusy ? "Cleaning up…" : "Clean up duplicates"}
+          </button>
+          <button
+            type="button"
+            onClick={() => void refresh()}
+            className="rounded-lg p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+            title="Refresh"
+          >
+            <RefreshCw aria-hidden size={16} />
+          </button>
+          {dedupeResult && (
+            <span className="text-xs text-zinc-500 dark:text-zinc-400 ml-3">
+              Removed {dedupeResult.deleted} duplicate{"s"}
+              {dedupeResult.deleted !== 1 ? "s" : ""}; {dedupeResult.kept}
+              post{"s"}
+              {dedupeResult.kept !== 1 ? "s" : ""} remain.
+            </span>
+          )}
+        </div>
       </div>
+
+      {error && (
+        <div
+          role="alert"
+          className="rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/50 dark:text-red-300"
+        >
+          {error}
+        </div>
+      )}
 
       {loading && (
         <p className="text-sm text-zinc-500 dark:text-zinc-400">Loading…</p>
@@ -150,12 +249,13 @@ export default function TrackerPage() {
                 <th className="px-4 py-3 text-xs font-medium text-zinc-500 uppercase">Date</th>
                 <th className="px-4 py-3 text-xs font-medium text-zinc-500 uppercase">Type</th>
                 <th className="px-4 py-3 text-xs font-medium text-zinc-500 uppercase text-right">Views</th>
+                <th className="px-4 py-3 text-right">Remove</th>
               </tr>
             </thead>
             <tbody>
               {visible.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-12 text-center text-zinc-500 dark:text-zinc-400">
+                  <td colSpan={6} className="px-4 py-12 text-center text-zinc-500 dark:text-zinc-400">
                     No posts match your filters.
                   </td>
                 </tr>
@@ -163,8 +263,7 @@ export default function TrackerPage() {
               {visible.map((post) => (
                 <tr
                   key={post.id}
-                  className="border-b border-zinc-100 hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900/30 group cursor-pointer"
-                  onClick={() => window.location.assign(`/tracker/${post.id}`)}
+                  className="border-b border-zinc-100 hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900/30 group"
                 >
                   <td className="px-4 py-4">
                     <div className="relative h-12 w-12 rounded-lg overflow-hidden border border-zinc-200 dark:border-zinc-700">
@@ -178,9 +277,13 @@ export default function TrackerPage() {
                     </div>
                   </td>
                   <td className="px-4 py-4">
-                    <div className="font-medium text-zinc-900 dark:text-zinc-100 group-hover:text-zinc-500 dark:group-hover:text-zinc-400">
+                    <button
+                      type="button"
+                      onClick={() => window.location.assign(`/tracker/${post.id}`)}
+                      className="w-full text-left font-medium text-zinc-900 dark:text-zinc-100 hover:text-zinc-500 dark:hover:text-zinc-400"
+                    >
                       {post.title || "(untitled)"}
-                    </div>
+                    </button>
                     <div className="mt-1 whitespace-pre-wrap text-xs text-zinc-500 dark:text-zinc-400 line-clamp-2">
                       {post.body}
                     </div>
@@ -206,6 +309,42 @@ export default function TrackerPage() {
                       <Eye aria-hidden size={14} />
                       {post.views}
                     </span>
+                  </td>
+                  <td className="px-4 py-4">
+                    <button
+                      type="button"
+                      aria-label={`Remove ${post.title}`}
+                      title="Remove this post"
+                      onClick={() => {
+                        if (removeId === post.id) {
+                          void remove(post.id);
+                        } else {
+                          setRemoveId(post.id);
+                          window.setTimeout(
+                            () => setRemoveId((armed) => (armed === post.id ? null : armed)),
+                            6000,
+                          );
+                        }
+                      }}
+                      disabled={busyId === post.id}
+                      className={`shrink-0 rounded-md p-1.5 transition-colors disabled:opacity-40 ${
+                        removeId === post.id
+                          ? "text-white bg-red-700 hover:bg-red-600"
+                          : "text-zinc-400 hover:bg-zinc-100 hover:text-red-600 dark:hover:bg-zinc-800 dark:hover:text-red-400"
+                      }`}
+                    >
+                      <Trash2 aria-hidden size={16} />
+                    </button>
+                    {removeId === post.id && (
+                      <button
+                        type="button"
+                        onClick={() => void remove(post.id)}
+                        disabled={busyId === post.id}
+                        className="mt-1 rounded-lg bg-red-700 px-3 py-1 font-medium text-white transition-colors hover:bg-red-600 disabled:opacity-40"
+                      >
+                        {busyId === post.id ? "Removing…" : "Confirm remove"}
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
