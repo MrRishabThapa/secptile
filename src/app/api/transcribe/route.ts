@@ -66,7 +66,7 @@ export async function POST(request: Request) {
       );
     }
     return NextResponse.json(
-      { error: `Transcription server not reachable at ${baseUrl}. Start it with scripts/start-whisper-server.sh` },
+      { error: `Transcription server not reachable at ${baseUrl}. Run: systemctl --user start secptile-whisper` },
       { status: 503 },
     );
   }

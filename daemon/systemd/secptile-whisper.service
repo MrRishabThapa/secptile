@@ -1,0 +1,13 @@
+[Unit]
+Description=Secptile transcription (whisper.cpp server, localhost only)
+After=default.target
+
+[Service]
+Type=simple
+# Model lives outside the repo (never commit model files).
+ExecStart=/usr/bin/whisper-server -m %h/.secptile/models/ggml-small.bin --host 127.0.0.1 --port 8080 --inference-path /inference --convert
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target

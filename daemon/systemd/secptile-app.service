@@ -5,9 +5,12 @@ After=network-online.target
 
 [Service]
 Type=simple
-# NOTE: install.sh rewrites these two lines to your HOME/pnpm paths if needed.
+# NOTE: install.sh rewrites these lines to your HOME paths, and fills
+# PATH with the directory holding your `node` (mise shims live there).
+# node's bin dir is needed because next(1) is a node script.
 WorkingDirectory=%h/Projects/secptile
-ExecStart=%h/.local/share/pnpm/pnpm start -- -p 3100
+Environment=PATH=__NODE_BIN_DIR__:/usr/local/bin:/usr/bin
+ExecStart=%h/Projects/secptile/node_modules/.bin/next start -p 3100
 Restart=on-failure
 RestartSec=3
 

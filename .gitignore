@@ -39,3 +39,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# python packaging artifacts (pip install -e daemon/)
+daemon/build/
+daemon/secptile_assistant.egg-info/

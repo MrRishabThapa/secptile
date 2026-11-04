@@ -47,16 +47,20 @@ if [[ -z "$PNPM_PATH" ]]; then
     echo "pnpm not found on PATH — the app unit will need ExecStart edited." >&2
     PNPM_PATH="$HOME/.local/share/pnpm/pnpm"
 fi
+NODE_BIN_DIR="$(dirname "$(command -v node)")"   # next(1) is a node script
 APP_UNIT="$UNIT_DIR/secptile-app.service"
 APP_UNIT_SRC="$REPO_DIR/daemon/systemd/secptile-app.service"
 
-# Rewrite ExecStart to the real pnpm location, keep everything else.
-sed "s|%h/.local/share/pnpm/pnpm|$PNPM_PATH|; s|WorkingDirectory=%h/Projects/secptile|WorkingDirectory=$REPO_DIR|" \
+sed "s|__NODE_BIN_DIR__|$NODE_BIN_DIR|; s|WorkingDirectory=%h/Projects/secptile|WorkingDirectory=$REPO_DIR|; s|ExecStart=%h/Projects/secptile|ExecStart=$REPO_DIR|" \
     "$APP_UNIT_SRC" > "$APP_UNIT"
 DAEMON_UNIT="$UNIT_DIR/secptile-daemon.service"
 DAEMON_UNIT_SRC="$REPO_DIR/daemon/systemd/secptile-daemon.service"
 sed "s|WorkingDirectory=%h/Projects/secptile/daemon|WorkingDirectory=$REPO_DIR/daemon|; s|ExecStart=%h/Projects/secptile/daemon/.venv/bin/python|ExecStart=$REPO_DIR/daemon/.venv/bin/python|" \
     "$DAEMON_UNIT_SRC" > "$DAEMON_UNIT"
+WHISPER_UNIT="$UNIT_DIR/secptile-whisper.service"
+WHISPER_UNIT_SRC="$REPO_DIR/daemon/systemd/secptile-whisper.service"
+cp "$WHISPER_UNIT_SRC" "$WHISPER_UNIT"
+systemctl --user enable secptile-whisper.service   # transcribe ready at login
 
 systemctl --user daemon-reload
 

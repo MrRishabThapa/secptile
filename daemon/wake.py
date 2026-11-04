@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Callable
 
-from livekit_wakeword import WakeWordModel  # type: ignore[import-unverified]
+from livekit.wakeword import WakeWordModel  # type: ignore[import-unverified]
 
 
 class WakeWatcher:
