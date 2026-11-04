@@ -123,7 +123,11 @@ export async function listPendingComments(): Promise<PendingComment[]> {
   );
   url.searchParams.set("order", "created_at.desc");
 
-  const response = await supabaseFetch(url, { method: "GET" }, "Could not list pending comments");
+  const response = await supabaseFetch(
+    url.toString(),
+    { method: "GET" },
+    "Could not list pending comments",
+  );
   const rows: unknown = await response.json();
   if (!Array.isArray(rows)) return [];
 
