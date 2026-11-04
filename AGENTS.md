@@ -28,7 +28,7 @@ A personal web app for a founder/entrepreneur (who is also a UX designer and Rea
 - **Speech-to-text:** local `whisper.cpp` or `faster-whisper`, exposed over a small local HTTP endpoint. Audio captured in the browser with `MediaRecorder`.
 - **Blog storage:** local SQLite (`node:sqlite`, zero deps) at `~/.secptile/blog/blog.db` — approved posts and their cover photos live there. Nothing is committed or pushed to any repo.
 - **Mandatory cover photo:** a post cannot be published without one (JPEG/PNG/GIF ≤ 8 MB, `/api/photos` upload + `/api/photos/[id]` serve). Optional checkbox attaches the same photo to the LinkedIn post via the Images API (`rest/images?action=initializeUpload` → PUT uploadUrl with OAuth header → `content.media.id`).
-- **LinkedIn post format:** model generates a hook-first `linkedin` text — ONE sentence with the most interesting fact (big numbers, announcements, earned emoji), then 3 blank lines, then the main content. Hashtags are appended by the app, never by the model.
+- **LinkedIn post format:** model generates a hook-first `linkedin` text — ONE sentence with the most interesting fact (big numbers, announcements, earned emoji), then **3–4 blank lines** (the big vertical gap is deliberate — it grabs attention in the feed), then the main content. Hashtags are appended by the app, never by the model, joined with an **underscore** (`#building_in_public`), never a hyphen, and appear exactly once.
 - **LinkedIn publishing:** official LinkedIn Posts API (`POST https://api.linkedin.com/rest/posts`, pinned `Linkedin-Version: 202610`) with OAuth 2.0, scopes `openid profile w_member_social`, and the member URN `urn:li:person:{sub}` from the OIDC userinfo endpoint. App routes are the source of truth — never rename them (the LinkedIn app's registered redirect URL depends on the callback): `GET /api/auth/linkedin/start`, `GET /api/auth/linkedin/callback`, `POST /api/linkedin/post`. **Never** use browser automation, scraping, or unofficial APIs for LinkedIn.
 - **Config/secrets:** `.env.local` only, plus a committed `.env.example` with placeholder values. Never commit real secrets.
 
@@ -51,7 +51,7 @@ OpenCode must be prompted to return JSON only, validated with zod:
 
 Prompt rules for the model: use only facts the user stated, never invent details, flag anything uncertain, and ask about gaps (what happened, why it mattered, outcome, lesson). Keep a "private notes" option so private items are excluded from the public post.
 
-LinkedIn text format (owned by the model): line 1 = one hook sentence on the single most interesting fact (big number, announcement, launch, bold lesson — with at most one earned emoji), then 3 completely blank lines, then the compressed plain-text content. Never start the hook with "Today".
+LinkedIn text format (owned by the model): line 1 = one hook sentence on the single most interesting fact (big number, announcement, launch, bold lesson — with at most one earned emoji), then 3–4 completely blank lines (deliberate attention gap), then the compressed plain-text content. Never start the hook with "Today". The APP owns hashtags: joined with underscores (`#building_in_public`, never hyphens), appended exactly once.
 
 ## 5. Phases
 

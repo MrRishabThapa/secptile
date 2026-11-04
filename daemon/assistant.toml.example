@@ -1,4 +1,4 @@
-# Secptile desktop assistant configuration (Phase 6).
+                                                                                                                                               # Secptile desktop assistant configuration (Phase 6).
 # Copy to ~/.secptile/assistant.toml (install.sh does this) and edit there.
 # Never commit your real copy: it can carry the shared secret.
 

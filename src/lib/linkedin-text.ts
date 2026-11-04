@@ -66,10 +66,49 @@ export function toLinkedInText(md: string): string {
   return escapeLittleText(stripMarkdown(md));
 }
 
-/** Hashtags line from the draft tags, e.g. "#build-in-public #ux". */
+/**
+ * Hashtag line from the draft tags. The owner's convention, confirmed live
+ * on LinkedIn: multi-word tags join with an UNDERSCORE, never a hyphen —
+ * e.g. "build in public" → "#build_in_public".
+ */
 export function tagsToHashtags(tags: string[]): string {
   return tags
-    .map((tag) => `#${tag.trim().replace(/\s+/g, "-").toLowerCase()}`)
+    .map((tag) =>
+      `#${tag
+        .trim()
+        .normalize("NFKD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-zA-Z0-9_]+/g, "_")
+        .replace(/_{2,}/g, "_")
+        .replace(/^_+|_+$/g, "")
+        .toLowerCase()}`,
+    )
     .filter((tag) => tag.length > 1)
     .join(" ");
+}
+
+/** A line that is only hashtag tokens: "#ai #secptile". */
+const HASHTAG_LINE = /^\s*#[A-Za-z0-9_]+(?:\s+#[A-Za-z0-9_]+)*\s*$/;
+
+/**
+ * Trailing hashtag lines on a text (legacy drafts or a model that ignored
+ * the "no hashtags" rule) — so the app can append its tag line exactly
+ * once and the post never shows the set twice.
+ */
+export function stripTrailingHashtags(text: string): string {
+  const lines = text.trimEnd().split("\n");
+  while (lines.length > 0 && HASHTAG_LINE.test(lines[lines.length - 1])) {
+    lines.pop();
+  }
+  return lines.join("\n").trimEnd();
+}
+
+/**
+ * The full post text: hook + gap + body, then the app-owned hashtag line
+ * appended exactly once even if the text already carries trailing tags.
+ */
+export function withAppendedHashtags(text: string, tags: string[]): string {
+  const base = stripTrailingHashtags(text);
+  const hashtags = tagsToHashtags(tags);
+  return hashtags ? `${base.trimEnd()}\n\n${hashtags}` : base;
 }

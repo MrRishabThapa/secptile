@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Draft } from "@/lib/schema";
 import {
   LINKEDIN_TEXT_LIMIT,
-  tagsToHashtags,
+  withAppendedHashtags,
 } from "@/lib/linkedin-text";
 
 type Status = { configured: boolean; connected: boolean; expiresAt: string | null };
@@ -80,8 +80,8 @@ export function LinkedInShare({
   const editedRef = useRef(false);
 
   // Candidate text follows the model's hook-first LinkedIn text until the
-  // user takes over; hashtags are appended at the end.
-  const candidate = `${draft.linkedin.trim()}\n\n${tagsToHashtags(draft.tags)}`.trim();
+  // user takes over; hashtags are appended at the end, exactly once.
+  const candidate = withAppendedHashtags(draft.linkedin.trim(), draft.tags);
   useEffect(() => {
     if (!editedRef.current) setText(candidate);
   }, [candidate]);
