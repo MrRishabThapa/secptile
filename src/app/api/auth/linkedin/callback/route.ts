@@ -15,11 +15,11 @@ export async function GET(request: NextRequest) {
   const oauthError = params.get("error");
 
   const stateCookie = request.cookies.get("secptile_li_state")?.value;
-  const home = (flag: string) =>
-    new URL(`/?linkedin=${flag}`, request.nextUrl.origin);
+  const tea = (flag: string) =>
+    new URL(`/tea?linkedin=${flag}`, request.nextUrl.origin);
 
   const back = (flag: string) => {
-    const response = NextResponse.redirect(home(flag));
+    const response = NextResponse.redirect(tea(flag));
     response.cookies.set("secptile_li_state", "", { path: "/", maxAge: 0 });
     return response;
   };
