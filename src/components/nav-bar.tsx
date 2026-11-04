@@ -6,11 +6,12 @@ import { usePathname } from "next/navigation";
 /**
  * Shared navigation. Built to grow: add entries here as new surfaces land
  * (assistant, stats, settings…). Blog/LinkedIn live together on Today's Tea;
- * voice journaling lives on Chat.
+ * voice journaling lives on Chat; portfolio blog comment review on Feedback.
  */
 const LINKS = [
   { href: "/", label: "Today's Tea" },
   { href: "/chat", label: "Chat with Secptile" },
+  { href: "/feedback", label: "Feedback" },
 ];
 
 export function NavBar() {
