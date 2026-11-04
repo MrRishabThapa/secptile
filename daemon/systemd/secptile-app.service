@@ -6,10 +6,11 @@ After=network-online.target
 [Service]
 Type=simple
 # NOTE: install.sh rewrites these lines to your HOME paths, and fills
-# PATH with the directory holding your `node` (mise shims live there).
+# PATH with the directories holding your `node` (mise shims live there)
+# and the `opencode` CLI — both needed by the journal route.
 # node's bin dir is needed because next(1) is a node script.
 WorkingDirectory=%h/Projects/secptile
-Environment=PATH=__NODE_BIN_DIR__:/usr/local/bin:/usr/bin
+Environment=PATH=__NODE_BIN_DIR__:__OPENCODE_BIN_DIR__:/usr/local/bin:/usr/bin
 ExecStart=%h/Projects/secptile/node_modules/.bin/next start -p 3100
 Restart=on-failure
 RestartSec=3

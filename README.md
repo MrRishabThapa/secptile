@@ -1,15 +1,15 @@
 # Secptile 🦎
 
-A personal voice journal that turns "here's how my day went" into a polished blog post — drafted by [OpenCode](https://opencode.ai) running on the same machine, reviewed and approved by you, then published to your portfolio and LinkedIn **only after explicit approval**.
+A personal voice journal that turns "here's how my day went" into a polished blog post — drafted by [OpenCode](https://opencode.ai) running on the same machine, reviewed and approved by you, then saved and shared **only after explicit approval**.
 
 ## How it works
 
-1. 🎙️ Speak a summary of your day (voice or text).
+1. 🎙️ Speak a summary of your day (voice or text) in **Chat with Secptile**.
 2. 🧠 The transcript is sent to OpenCode (`opencode run`, JSON-only prompt, strict zod gate).
 3. ❓ OpenCode asks clarifying questions until the day's story is complete.
-4. 📝 It drafts a blog-style post (what was done, what else, lessons).
-5. 👀 You review it in an editor beside a LinkedIn-style preview, edit or regenerate with a note, and **approve**.
-6. 🚀 Only after explicit approval: MDX post → portfolio repo (`content/posts/YYYY-MM-DD-slug.mdx`, commit, best-effort push) and a LinkedIn post via the official Posts API (`POST https://api.linkedin.com/rest/posts`, `Linkedin-Version: 202610`, `X-Restli-Protocol-Version: 2.0.0`), with the live blog URL attached as the article link preview.
+4. 📝 The finished draft lands on **Today's Tea** — editor, mandatory cover photo, LinkedIn preview with the hook-first post text.
+5. 👀 You attach a photo, edit or regenerate with a note, and **approve**.
+6. 🚀 Only after explicit approval: the post is saved (with its cover photo) into the local SQLite blog DB (`node:sqlite`, `~/.secptile/blog/blog.db` — no repos, no commits), and a LinkedIn post goes out via the official Posts API (`POST https://api.linkedin.com/rest/posts`, `Linkedin-Version: 202610`, `X-Restli-Protocol-Version: 2.0.0`), optionally carrying the same cover photo (Images API upload).
 
 **LinkedIn routes (source of truth — do not rename):** OAuth starts at
 `GET /api/auth/linkedin/start`, LinkedIn returns to
@@ -28,7 +28,7 @@ The registered redirect URL must match the callback exactly.
 ## Polish highlights (Phase 6)
 
 - **Streaming turns** — `/api/journal/stream` (NDJSON) pings "Talking to OpenCode… / session started" while the model works; the JSON contract is still gated by the same zod schemas
-- **History of past days** — every finished day is one JSON record in `~/.secptile/history/`; "Past days" lists them with portfolio/LinkedIn badges and the original transcript kept local
+- **History of past days** — every finished day is one JSON record in `~/.secptile/history/`; "Past days" lists them with publish/LinkedIn badges and the original transcript kept local
 - **STT-tolerant wake phrase** — span-alignment fuzzy matcher handles "sep tile", "i'm", and misheard filler words
 - **Error states** — publishing/social failures surface exact LinkedIn errors, push failures explain themselves, history never 500s the page
 
@@ -67,9 +67,7 @@ OpenCode environment (in `.env.local`):
 
 Publishing environment (in `.env.local`):
 
-- `PORTFOLIO_REPO_PATH` — local clone of your portfolio repo (e.g. `/home/rishab/Projects/portfolio/next-portfolio`)
-- `PORTFOLIO_POSTS_DIR` — optional, posts directory inside the repo (default `content/posts`)
-- `PORTFOLIO_POST_URL_TEMPLATE` — optional template for the LIVE post URL, e.g. `https://your-domain.com/blog/{date}-{slug}`; consumed by the LinkedIn article link preview and the publish success banner. Tokens: `{date}`, `{slug}`.
+- `SECPTILE_BLOG_DIR` — optional directory for the SQLite blog DB (default `~/.secptile/blog`; file `blog.db`; cover photos stored as rows inside it)
 
 LinkedIn environment (in `.env.local`) — create the app at
 [linkedin.com/developers](https://www.linkedin.com/developers), request both
@@ -96,12 +94,12 @@ on the share panel. **Note:** requesting a different scope set than before
 revokes previously issued tokens — one reconnect after the OIDC switch is
 expected.
 
-Testing (disposable post): publish to the portfolio, post from the share
-panel (the two-click confirm guards double-posts), then delete the post on
-LinkedIn and remove the test MDX/day from the portfolio repo and the
-history dir. The post button only enables after the portfolio publish
-succeeded, and retries after a LinkedIn failure don't republish the blog
-post.
+Testing (disposable post): save the post to Today's Tea (SQLite only — just
+delete the rows from `~/.secptile/blog/blog.db` afterwards, or the whole file
+when no real posts exist), then post from the share panel (the two-click
+confirm guards double-posts) and delete the test post on LinkedIn. The post
+button only enables after the blog is saved, and retries after a LinkedIn
+failure don't resave the blog post.
 
 ## Project status
 
@@ -111,7 +109,7 @@ post.
 | 1                                      | Text-only journal loop       | ✅                                    |
 | 2                                      | Voice input (local Whisper)  | ✅ code · ⏳ STT live verify pending   |
 | 3                                      | Draft editor + approval      | ✅                                    |
-| 4                                      | Portfolio publishing (MDX)   | ✅                                    |
+| 4                                      | Blog publishing (SQLite + photo) | ✅                               |
 | 5                                      | LinkedIn publishing          | ✅ (route contract, OIDC scopes)      |
 | 6                                      | Desktop voice assistant      | ✅ code · ⏳ wake models to train      |
 | 7                                      | Polish & streaming           | ✅                                    |

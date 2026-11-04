@@ -2,11 +2,11 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { LinkedInError, postToLinkedIn } from "@/lib/linkedin";
 import { LINKEDIN_TEXT_LIMIT } from "@/lib/linkedin-text";
-import { updateStatus } from "@/lib/history";
+import { getPhoto, markLinkedInBySession } from "@/lib/blog-db";
 
 const bodySchema = z
   .object({
-    /** Plain LinkedIn text (markdown is NOT accepted on commentary). */
+    /** The approved hook-format LinkedIn text (plain, no markdown). */
     text: z.string().min(1).max(LINKEDIN_TEXT_LIMIT),
     /**
      * The client must literally send `approved: true` — this posts to the
@@ -14,19 +14,16 @@ const bodySchema = z
      */
     approved: z.literal(true),
     visibility: z.enum(["PUBLIC", "CONNECTIONS"]).default("PUBLIC"),
+    /** Optional: attach the post's cover photo as the image. */
+    photoId: z.string().min(1).max(64).optional(),
+    /** Alt text for the attached image — kept short (schema recommends <120). */
+    imageAlt: z.string().min(1).max(120).optional(),
     /** Links the post to this day's history record, when known. */
     sessionId: z.string().min(1).optional(),
-    /**
-     * Article link preview (docs: Post Schema — content.article). source and
-     * title are required together; the summary stays optional (<4086 chars).
-     */
-    articleUrl: z.string().url().max(2048).optional(),
-    articleTitle: z.string().min(1).max(400).optional(),
-    articleDescription: z.string().max(4086).optional(),
   })
-  .refine((data) => Boolean(data.articleUrl) === Boolean(data.articleTitle), {
-    error: "articleTitle is required with articleUrl (and vice versa).",
-    path: ["articleTitle"],
+  .refine((data) => Boolean(data.photoId) || !data.imageAlt, {
+    error: "imageAlt only makes sense with a photoId.",
+    path: ["imageAlt"],
   });
 
 export async function POST(request: Request) {
@@ -46,24 +43,34 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { articleUrl, articleTitle, articleDescription } = parsed.data;
-    const result = await postToLinkedIn(
-      parsed.data.text,
-      parsed.data.visibility,
-      articleUrl
-        ? {
-            url: articleUrl,
-            title: articleTitle ?? "",
-            ...(articleDescription ? { description: articleDescription } : {}),
-          }
-        : undefined,
-    );
-    // Best-effort history cross-reference (Phase 6).
-    if (parsed.data.sessionId && result.postUrn) {
-      try {
-        await updateStatus(parsed.data.sessionId, { linkedInUrn: result.postUrn });
-      } catch (historyError) {
-        console.error("[api/linkedin/post] history update failed:", historyError);
+    let image: { bytes: Uint8Array; mime: string; altText: string } | undefined;
+    if (parsed.data.photoId) {
+      const photo = getPhoto(parsed.data.photoId);
+      if (!photo) {
+        return NextResponse.json(
+          { error: "The cover photo vanished — re-attach it before posting." },
+          { status: 400 },
+        );
+      }
+      image = {
+        bytes: photo.bytes,
+        mime: photo.mime,
+        altText: parsed.data.imageAlt ?? "Cover photo",
+      };
+    }
+
+    const result = await postToLinkedIn(parsed.data.text, parsed.data.visibility, {
+      image,
+    });
+
+    // Best-effort bookkeeping: history record AND the blog DB row.
+    if (result.postUrn) {
+      if (parsed.data.sessionId) {
+        try {
+          markLinkedInBySession(parsed.data.sessionId, result.postUrn);
+        } catch (dbError) {
+          console.error("[api/linkedin/post] blog DB update failed:", dbError);
+        }
       }
     }
     return NextResponse.json(result);

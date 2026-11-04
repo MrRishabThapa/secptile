@@ -3,17 +3,18 @@
 import { useMemo } from "react";
 import {
   LINKEDIN_TEXT_LIMIT,
-  stripMarkdown,
   tagsToHashtags,
 } from "@/lib/linkedin-text";
 
 type Props = {
-  body: string;
+  /** The exact LinkedIn text that will post (already plain, hook-first). */
+  text: string;
   tags: string[];
+  /** Cover photo, top of the card like the real feed shows it. */
+  photoUrl: string | null;
 };
 
-export function LinkedInPreview({ body, tags }: Props) {
-  const text = useMemo(() => stripMarkdown(body), [body]);
+export function LinkedInPreview({ text, tags, photoUrl }: Props) {
   const hashtags = useMemo(() => tagsToHashtags(tags), [tags]);
   const chars = text.length + (hashtags ? ` ${hashtags}`.length : 0);
   const overLimit = chars > LINKEDIN_TEXT_LIMIT;
@@ -24,35 +25,47 @@ export function LinkedInPreview({ body, tags }: Props) {
         LinkedIn preview
       </h2>
 
-      <article className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-[#1d1f1e]">
-        {/* header */}
-        <div className="flex items-start gap-3">
-          <span
-            aria-hidden
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-sm bg-gradient-to-br from-[#0a66c2] to-[#004182] text-sm font-bold text-white"
-          >
-            RT
-          </span>
-          <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-[#0a66c2] dark:text-[#4b9ce8]">
-              Rishab Thapa
-            </p>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              Founder · just now · 🌐
-            </p>
+      <article className="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-[#1d1f1e]">
+        <div className="p-4 pb-3">
+          {/* header */}
+          <div className="flex items-start gap-3">
+            <span
+              aria-hidden
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#0a66c2] to-[#004182] text-sm font-bold text-white"
+            >
+              RT
+            </span>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                Rishab Thapa
+              </p>
+              <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
+                Founder · just now · 🌐
+              </p>
+            </div>
+          </div>
+
+          {/* hook + body */}
+          <div className="mt-3 whitespace-pre-wrap break-words text-sm leading-relaxed text-zinc-800 dark:text-zinc-200">
+            {text}
+            {hashtags && (
+              <span className="text-[#0a66c2] dark:text-[#4b9ce8]"> {hashtags}</span>
+            )}
           </div>
         </div>
 
-        {/* body */}
-        <div className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-zinc-800 dark:text-zinc-200">
-          {text}
-          {hashtags && (
-            <span className="text-[#0a66c2] dark:text-[#4b9ce8]"> {hashtags}</span>
-          )}
-        </div>
+        {/* cover photo — sits between the text and the feed card body */}
+        {photoUrl && (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            src={photoUrl}
+            alt="Cover photo preview"
+            className="max-h-80 w-full border-y border-zinc-200 object-cover dark:border-zinc-800"
+          />
+        )}
 
         {/* engagement bar placeholders */}
-        <div className="mt-3 border-t border-zinc-200 pt-2 text-xs text-zinc-400 dark:border-zinc-700 dark:text-zinc-600">
+        <div className="border-t border-zinc-200 px-4 py-2 text-xs text-zinc-400 dark:border-zinc-700 dark:text-zinc-600">
           👍 📈 ❤️ 0 · 💬 0 · 🔁 0
         </div>
       </article>
@@ -66,7 +79,7 @@ export function LinkedInPreview({ body, tags }: Props) {
         {overLimit && " — over LinkedIn's limit, trim the post"}
       </p>
       <p className="text-xs text-zinc-400 dark:text-zinc-600">
-        Approximation: markdown is flattened to plain text the way a LinkedIn post reads.
+        This is the exact text and the exact photo that would go out.
       </p>
     </section>
   );

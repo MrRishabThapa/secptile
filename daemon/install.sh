@@ -48,10 +48,11 @@ if [[ -z "$PNPM_PATH" ]]; then
     PNPM_PATH="$HOME/.local/share/pnpm/pnpm"
 fi
 NODE_BIN_DIR="$(dirname "$(command -v node)")"   # next(1) is a node script
+CODE_BIN_DIR="$(dirname "$(command -v opencode)")"  # journal route spawns opencode
 APP_UNIT="$UNIT_DIR/secptile-app.service"
 APP_UNIT_SRC="$REPO_DIR/daemon/systemd/secptile-app.service"
 
-sed "s|__NODE_BIN_DIR__|$NODE_BIN_DIR|; s|WorkingDirectory=%h/Projects/secptile|WorkingDirectory=$REPO_DIR|; s|ExecStart=%h/Projects/secptile|ExecStart=$REPO_DIR|" \
+sed "s|__NODE_BIN_DIR__|$NODE_BIN_DIR|; s|__OPENCODE_BIN_DIR__|$CODE_BIN_DIR|; s|WorkingDirectory=%h/Projects/secptile|WorkingDirectory=$REPO_DIR|; s|ExecStart=%h/Projects/secptile|ExecStart=$REPO_DIR|" \
     "$APP_UNIT_SRC" > "$APP_UNIT"
 DAEMON_UNIT="$UNIT_DIR/secptile-daemon.service"
 DAEMON_UNIT_SRC="$REPO_DIR/daemon/systemd/secptile-daemon.service"
