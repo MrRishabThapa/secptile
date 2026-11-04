@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getPost } from "@/lib/blog-db";
+import { deletePost, getPost } from "@/lib/blog-db";
 
 type Context = { params: Promise<{ id: string }> };
 
@@ -16,6 +16,21 @@ export async function GET(_request: Request, context: Context) {
     console.error("[api/posts/[id]] failed:", error);
     return NextResponse.json(
       { error: "Could not read the post." },
+      { status: 500 },
+    );
+  }
+}
+
+/** Remove one post from the tracker. */
+export async function DELETE(_request: Request, context: Context) {
+  const { id } = await context.params;
+  try {
+    deletePost(id);
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    console.error("[api/posts/[id]/DELETE] failed:", error);
+    return NextResponse.json(
+      { error: "Could not delete the post." },
       { status: 500 },
     );
   }
