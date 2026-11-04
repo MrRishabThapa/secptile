@@ -13,6 +13,7 @@ import logo from "@/assets/logo.png";
 const LINKS = [
   { href: "/", label: "Chat" },
   { href: "/tea", label: "Today's Tea" },
+  { href: "/tracker", label: "Tracker" },
   { href: "/feedback", label: "Feedback" },
 ];
 

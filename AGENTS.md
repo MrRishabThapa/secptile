@@ -95,7 +95,8 @@ After each phase: list the files created (in commit order), how to run and test 
 ## 9. Project specifics
 
 - Project name: **Secptile**.
-- UI structure: a shared navbar (`src/components/nav-bar.tsx`) anchors the pages — **"Chat"** (`/`, voice journaling; **this is the page the app opens on**) and **"Today's Tea"** (`/tea`, blog editor + LinkedIn share) plus **"Feedback"** (`/feedback`, pending blog-comment review). The draft is handed from Chat to Today's Tea via sessionStorage when the story is complete; a Past-days row click opens the day in Tea for publish/verify, double-click offers removal. Built to grow: new surfaces get their own navbar entry. No emoji in the UI — use lucide icons.
+- UI structure: a shared navbar (`src/components/nav-bar.tsx`) anchors the pages — **"Chat"** (`/`, voice journaling; **this is the page the app opens on**), **"Today's Tea"** (`/tea`, blog editor + LinkedIn share), **"Tracker"** (`/tracker`, filtered history of every post published through Secptile with views analytics) plus **"Feedback"** (`/feedback`, pending blog-comment review). The draft is handed from Chat to Today's Tea via sessionStorage when the story is complete; a Past-days row click opens the day in Tea for publish/verify, double-click offers removal. Built to grow: new surfaces get their own navbar entry. No emoji in the UI — use lucide icons.
+- **Tracker:** `/tracker` lists every post (blog + LinkedIn) stored in the local SQLite blog DB with a date-range filter, search, and blog-vs-LinkedIn type filter. Opening a row (`/tracker/[id]`) shows the full thread: cover photo, body, LinkedIn text, tags, and a views counter (incremented on cover fetch and thread open) plus LinkedIn post date/URN.
 - Initialization (wake) voice command: **"hey secptile i am here"** (implemented with voice in Phase 2; detectable in transcript text from then on).
 - App's voice response to the wake command: **"welcome boss, how was your day?"**
 
