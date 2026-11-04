@@ -36,6 +36,8 @@ export type PostRow = {
   tags: string[];
   photoId: string;
   linkedInUrn: string | null;
+  linkedinPostedAt: string | null;
+  views: number;
   createdAt: string;
 };
 
@@ -79,6 +81,18 @@ function db(): DatabaseSync {
       created_at    TEXT NOT NULL
     );
   `);
+  // Safe schema migration for databases created before views / LinkedIn
+  // posting timestamps existed.
+  for (const alter of [
+    "ALTER TABLE posts ADD COLUMN views INTEGER DEFAULT 0",
+    "ALTER TABLE posts ADD COLUMN linkedin_posted_at TEXT",
+  ]) {
+    try {
+      database.exec(alter);
+    } catch {
+      /* column already exists — that's the goal */
+    }
+  }
   return database;
 }
 
@@ -126,8 +140,8 @@ export function savePost(input: SavePostInput): string {
   const id = randomUUID();
   conn
     .prepare(
-      `INSERT INTO posts (id, session_id, title, body, linkedin_text, tags, photo_id, linkedin_urn, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?)`,
+      `INSERT INTO posts (id, session_id, title, body, linkedin_text, tags, photo_id, linkedin_urn, linkedin_posted_at, views, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL, 0, ?)`,
     )
     .run(
       id,
@@ -146,14 +160,68 @@ export function savePost(input: SavePostInput): string {
 export function markLinkedInBySession(sessionId: string, urn: string): void {
   const conn = db();
   conn
-    .prepare("UPDATE posts SET linkedin_urn = ? WHERE session_id = ?")
-    .run(urn, sessionId);
+    .prepare(
+      "UPDATE posts SET linkedin_urn = ?, linkedin_posted_at = ? WHERE session_id = ?",
+    )
+    .run(urn, new Date().toISOString(), sessionId);
+}
+
+/** Increment the view counter for a post (thread opened / cover fetched). */
+export function incrementViews(id: string): void {
+  const conn = db();
+  conn.prepare("UPDATE posts SET views = views + 1 WHERE id = ?").run(id);
+}
+
+/** Count a cover-photo fetch as a view for the post that owns it (best-effort). */
+export function incrementViewsForPhoto(photoId: string): void {
+  const conn = db();
+  const row = conn
+    .prepare("SELECT id FROM posts WHERE photo_id = ?")
+    .get(photoId) as { id: string } | undefined;
+  if (row) incrementViews(row.id);
+}
+
+function mapRow(row: {
+  id: string;
+  session_id: string | null;
+  title: string;
+  body: string;
+  linkedin_text: string;
+  tags: string;
+  photo_id: string;
+  linkedin_urn: string | null;
+  linkedin_posted_at: string | null;
+  views: number;
+  created_at: string;
+}): PostRow {
+  let tags: string[] = [];
+  try {
+    const parsed: unknown = JSON.parse(row.tags);
+    if (Array.isArray(parsed)) {
+      tags = parsed.filter((tag): tag is string => typeof tag === "string");
+    }
+  } catch {
+    /* corrupt tags row — degrade to empty list */
+  }
+  return {
+    id: row.id,
+    sessionId: row.session_id,
+    title: row.title,
+    body: row.body,
+    linkedinText: row.linkedin_text,
+    tags,
+    photoId: row.photo_id,
+    linkedInUrn: row.linkedin_urn,
+    linkedinPostedAt: row.linkedin_posted_at,
+    views: row.views,
+    createdAt: row.created_at,
+  };
 }
 
 export function listPosts(): PostRow[] {
   const rows = db()
     .prepare(
-      `SELECT id, session_id, title, body, linkedin_text, tags, photo_id, linkedin_urn, created_at
+      `SELECT id, session_id, title, body, linkedin_text, tags, photo_id, linkedin_urn, linkedin_posted_at, views, created_at
        FROM posts ORDER BY created_at DESC`,
     )
     .all() as Array<{
@@ -165,28 +233,35 @@ export function listPosts(): PostRow[] {
     tags: string;
     photo_id: string;
     linkedin_urn: string | null;
+    linkedin_posted_at: string | null;
+    views: number;
     created_at: string;
   }>;
-  return rows.map((row) => {
-    let tags: string[] = [];
-    try {
-      const parsed: unknown = JSON.parse(row.tags);
-      if (Array.isArray(parsed)) {
-        tags = parsed.filter((tag): tag is string => typeof tag === "string");
+  return rows.map(mapRow);
+}
+
+/** Fetch one post by id for the tracker thread/detail view. */
+export function getPost(id: string): PostRow | null {
+  const row = db()
+    .prepare(
+      `SELECT id, session_id, title, body, linkedin_text, tags, photo_id, linkedin_urn, linkedin_posted_at, views, created_at
+       FROM posts WHERE id = ?`,
+    )
+    .get(id) as
+    | {
+        id: string;
+        session_id: string | null;
+        title: string;
+        body: string;
+        linkedin_text: string;
+        tags: string;
+        photo_id: string;
+        linkedin_urn: string | null;
+        linkedin_posted_at: string | null;
+        views: number;
+        created_at: string;
       }
-    } catch {
-      /* corrupt tags row — degrade to empty list */
-    }
-    return {
-      id: row.id,
-      sessionId: row.session_id,
-      title: row.title,
-      body: row.body,
-      linkedinText: row.linkedin_text,
-      tags,
-      photoId: row.photo_id,
-      linkedInUrn: row.linkedin_urn,
-      createdAt: row.created_at,
-    };
-  });
+    | undefined;
+  if (!row) return null;
+  return mapRow(row);
 }
