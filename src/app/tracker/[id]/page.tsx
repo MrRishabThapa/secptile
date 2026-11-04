@@ -1,14 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+// Renders at request time — post ids live in the local SQLite DB, not known
+// at build time.
+export const dynamic = "force-dynamic";
+
+import { use, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import {
   ChevronLeft,
-  Copy,
   Eye,
   FileText,
-  Image,
-  Link as LinkIcon,
   LayoutList,
   Share2,
 } from "lucide-react";
@@ -27,8 +29,12 @@ type Post = {
   createdAt: string;
 };
 
-export default function TrackerPost({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
+export default function TrackerPost({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = use(params);
   const [post, setPost] = useState<Post | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -157,7 +163,7 @@ export default function TrackerPost({ params }: { params: Promise<{ id: string }
                   <dt className="text-zinc-500 dark:text-zinc-400">LinkedIn</dt>
                   <dd className="flex items-center gap-2">
                     <Share2 aria-hidden size={14} className="text-sky-600" />
-                    <span className="font-mono text-xs text-zinc-800 dark:text-zinc-200 truncate" title={post.linkedInUrn}>
+                    <span className="font-mono text-xs text-zinc-800 dark:text-zinc-200 truncate" title={memberName ?? ""}>
                       {memberName ?? post.linkedInUrn}
                     </span>
                     <span className="text-xs text-zinc-500 dark:text-zinc-400">
@@ -171,14 +177,15 @@ export default function TrackerPost({ params }: { params: Promise<{ id: string }
 
           <section className="rounded-xl border border-zinc-200 p-5 dark:border-zinc-800">
             <div className="flex items-center gap-2 mb-3">
-              <Link asChild className="flex items-center gap-2 text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100">
-                <LinkIcon aria-hidden size={16} />
-                <span className="text-xs font-medium">Open in blog</span>
-              </Link>
+              <FileText aria-hidden className="h-5 w-5 text-zinc-500" />
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                Storage
+              </h2>
             </div>
             <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              The portfolio site renders this post at its own URL — views there
-              are tracked by the site, not by Secptile.
+              Cover photo is served from Secptile storage ({post.photoId}).
+              Views here are counted by Secptile; the portfolio site tracks
+              its own views separately.
             </p>
           </section>
         </div>
