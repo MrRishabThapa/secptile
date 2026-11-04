@@ -13,6 +13,7 @@ import {
   FileText,
   LayoutList,
   Share2,
+  Trash2,
 } from "lucide-react";
 
 type Post = {
@@ -82,6 +83,21 @@ export default function TrackerPost({
         <Link href="/tracker" className="rounded-lg p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100">
           <ChevronLeft aria-hidden size={18} />
         </Link>
+        <button
+          type="button"
+          aria-label={`Delete ${post.title || "this post"}`}
+          title="Delete this post"
+          onClick={() => {
+            if (window.confirm(`Delete "${post.title || "this post"}"? This cannot be undone.`)) {
+              void fetch(`/api/posts/${id}`, { method: "DELETE" }).then(() => {
+                window.location.assign("/tracker");
+              });
+            }
+          }}
+          className="rounded-lg p-2 text-zinc-400 hover:bg-red-100 hover:text-red-700 dark:hover:bg-red-900 dark:hover:text-red-400"
+        >
+          <Trash2 aria-hidden size={18} />
+        </button>
         <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
           {post.title || "(untitled)"}
         </h1>
