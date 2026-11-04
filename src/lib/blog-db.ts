@@ -137,6 +137,34 @@ export function savePost(input: SavePostInput): string {
   if (!photo) {
     throw new BlogError("The cover photo is missing — attach it again.", 400);
   }
+  const now = new Date().toISOString();
+  const tagsJson = JSON.stringify(input.tags);
+
+  // Idempotent: re-publishing the same journal session updates its record
+  // instead of stacking duplicates in the tracker.
+  if (input.sessionId) {
+    const existing = conn
+      .prepare("SELECT id FROM posts WHERE session_id = ?")
+      .get(input.sessionId) as { id: string } | undefined;
+    if (existing) {
+      conn
+        .prepare(
+          `UPDATE posts SET title = ?, body = ?, linkedin_text = ?, tags = ?,
+          photo_id = ?, created_at = ? WHERE id = ?`,
+        )
+        .run(
+          input.title,
+          input.body,
+          input.linkedinText,
+          tagsJson,
+          input.photoId,
+          now,
+          existing.id,
+        );
+      return existing.id;
+    }
+  }
+
   const id = randomUUID();
   conn
     .prepare(
@@ -149,9 +177,9 @@ export function savePost(input: SavePostInput): string {
       input.title,
       input.body,
       input.linkedinText,
-      JSON.stringify(input.tags),
+      tagsJson,
       input.photoId,
-      new Date().toISOString(),
+      now,
     );
   return id;
 }
