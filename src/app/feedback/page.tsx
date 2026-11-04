@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { PartyPopper } from "lucide-react";
 
 type PendingComment = {
   id: number;
@@ -174,9 +175,7 @@ export default function FeedbackPage() {
 
       {!loading && configured && pending.length === 0 && (
         <div className="rounded-xl border border-dashed border-zinc-300 p-10 text-center dark:border-zinc-700">
-          <p className="text-4xl" aria-hidden>
-            🎉
-          </p>
+          <PartyPopper aria-hidden className="mx-auto h-10 w-10 text-zinc-400 dark:text-zinc-600" />
           <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
             All caught up — no pending comments on your blog.
           </p>
