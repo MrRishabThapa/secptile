@@ -5,7 +5,6 @@ import type { Draft } from "@/lib/schema";
 import {
   LINKEDIN_TEXT_LIMIT,
   tagsToHashtags,
-  toLinkedInText,
 } from "@/lib/linkedin-text";
 
 type Status = { configured: boolean; connected: boolean; expiresAt: string | null };
@@ -47,18 +46,17 @@ type Props = {
   onConnect: () => void;
   /** Links the LinkedIn post to this day's history record. */
   sessionId: string | null;
-  /** True once the portfolio publish succeeded (partial-failure retry friendly). */
-  portfolioPublished: boolean;
-  /** Live blog URL from the portfolio publish — the article link preview. */
-  blogUrl: string | null;
+  /** True once the blog publish succeeded (ordering: blog first, then share). */
+  published: boolean;
+  /** Cover photo of the day — optional to attach, recommended. */
+  photoId: string | null;
 };
 
 /**
- * Post the approved day to LinkedIn as plain text (Phase 5, official API).
- * Shown only after approval — same hard rule as portfolio publishing. The
- * post button stays disabled until the portfolio post is live so it can
- * carry the real blog URL; a failed LinkedIn attempt never republishes the
- * blog (that flag comes from the independent publish step).
+ * Post the approved day to LinkedIn (Phase 5, official API). Shown only after
+ * approval — same hard rule as blog publishing. The text starts from the
+ * model's hook-format `linkedin` field and stays editable; the cover photo
+ * attach is optional (default on — image posts reach further).
  */
 export function LinkedInShare({
   draft,
@@ -66,8 +64,8 @@ export function LinkedInShare({
   statusKey,
   onConnect,
   sessionId,
-  portfolioPublished,
-  blogUrl,
+  published,
+  photoId,
 }: Props) {
   const [status, setStatus] = useState<Status | null>(null);
   /** Set in the status effect (Date.now is not render-safe). */
@@ -78,12 +76,12 @@ export function LinkedInShare({
   const [armed, setArmed] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [attachPhoto, setAttachPhoto] = useState(true);
   const editedRef = useRef(false);
 
-  // Candidate text follows the draft until the user takes over. The posted
-  // commentary gets little-text escaping (linkedin-text.ts); the raw
-  // `stripMarkdown` version renders on-screen in LinkedInPreview.
-  const candidate = `${toLinkedInText(draft.body)}\n\n${tagsToHashtags(draft.tags)}`.trim();
+  // Candidate text follows the model's hook-first LinkedIn text until the
+  // user takes over; hashtags are appended at the end.
+  const candidate = `${draft.linkedin.trim()}\n\n${tagsToHashtags(draft.tags)}`.trim();
   useEffect(() => {
     if (!editedRef.current) setText(candidate);
   }, [candidate]);
@@ -113,7 +111,7 @@ export function LinkedInShare({
   const connected = Boolean(status?.connected) && !expired;
   const readyToPost =
     approved &&
-    portfolioPublished &&
+    published &&
     connected &&
     !overLimit &&
     text.trim().length > 0 &&
@@ -132,8 +130,8 @@ export function LinkedInShare({
           visibility: "PUBLIC",
           approved: true,
           sessionId: sessionId ?? undefined,
-          articleUrl: blogUrl ?? undefined,
-          articleTitle: blogUrl ? draft.title : undefined,
+          photoId: attachPhoto && photoId ? photoId : undefined,
+          imageAlt: attachPhoto && photoId ? draft.title.slice(0, 120) : undefined,
         }),
       });
       const json: unknown = await response.json();
@@ -220,17 +218,25 @@ export function LinkedInShare({
               .
             </p>
           )}
-          {blogUrl && (
-            <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              Article link: <code className="font-mono">{blogUrl}</code>
-            </p>
-          )}
-          {!portfolioPublished && (
+          {!published && (
             <p className="text-xs text-amber-700 dark:text-amber-400">
-              Publish to the portfolio first — the LinkedIn post links to the
-              live blog URL.
+              Publish to Today&apos;s Tea first — the blog is stored before it
+              is shared anywhere.
             </p>
           )}
+
+          {photoId && (
+            <label className="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300">
+              <input
+                type="checkbox"
+                checked={attachPhoto}
+                onChange={(event) => setAttachPhoto(event.target.checked)}
+                className="h-4 w-4 rounded border-zinc-300 accent-[#0a66c2]"
+              />
+              Attach the cover photo to the post
+            </label>
+          )}
+
           <textarea
             value={text}
             onChange={(event) => {
@@ -240,7 +246,7 @@ export function LinkedInShare({
             }}
             rows={10}
             className="w-full resize-y rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-800 focus:border-[#0a66c2] focus:outline-none disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
-            placeholder="LinkedIn text — plain, no markdown"
+            placeholder="LinkedIn text — the first line should be the hook"
           />
           <p
             className={`text-xs tabular-nums ${
@@ -258,6 +264,7 @@ export function LinkedInShare({
             >
               Posted ✓ {result !== "posted" && <code className="font-mono">{result}</code>}
               {edited && " — with your edited text"}
+              {attachPhoto && photoId && " — with the cover photo"}
             </p>
           )}
           {error && (
@@ -278,6 +285,7 @@ export function LinkedInShare({
                 }
               }}
               disabled={!readyToPost}
+              title={approved && published && !connected ? undefined : "Approve, publish, connect — then post."}
               className={`w-fit rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
                 armed
                   ? "bg-red-700 hover:bg-red-600"
