@@ -57,6 +57,10 @@ DAEMON_UNIT="$UNIT_DIR/secptile-daemon.service"
 DAEMON_UNIT_SRC="$REPO_DIR/daemon/systemd/secptile-daemon.service"
 sed "s|WorkingDirectory=%h/Projects/secptile/daemon|WorkingDirectory=$REPO_DIR/daemon|; s|ExecStart=%h/Projects/secptile/daemon/.venv/bin/python|ExecStart=$REPO_DIR/daemon/.venv/bin/python|" \
     "$DAEMON_UNIT_SRC" > "$DAEMON_UNIT"
+WHISPER_UNIT="$UNIT_DIR/secptile-whisper.service"
+WHISPER_UNIT_SRC="$REPO_DIR/daemon/systemd/secptile-whisper.service"
+cp "$WHISPER_UNIT_SRC" "$WHISPER_UNIT"
+systemctl --user enable secptile-whisper.service   # transcribe ready at login
 
 systemctl --user daemon-reload
 
