@@ -194,6 +194,38 @@ export function markLinkedInBySession(sessionId: string, urn: string): void {
     .run(urn, new Date().toISOString(), sessionId);
 }
 
+/** Remove one post from the tracker (per-row delete). */
+export function deletePost(id: string): void {
+  const conn = db();
+  conn.prepare("DELETE FROM posts WHERE id = ?").run(id);
+}
+
+/**
+ * Remove duplicate posts, keeping the newest per journal session.
+ * Rows without a session id are left untouched.
+ * Returns how many were deleted and how many remain.
+ */
+export function deleteDuplicatePosts(): { deleted: number; kept: number } {
+  const conn = db();
+  const dups = conn
+    .prepare(
+      `SELECT p1.id FROM posts p1
+       WHERE p1.session_id IS NOT NULL
+       AND p1.created_at < (
+         SELECT MAX(p2.created_at) FROM posts p2
+         WHERE p2.session_id = p1.session_id
+       )`,
+    )
+    .all() as Array<{ id: string }>;
+  for (const row of dups) {
+    conn.prepare("DELETE FROM posts WHERE id = ?").run(row.id);
+  }
+  const kept = conn
+    .prepare("SELECT COUNT(*) AS c FROM posts")
+    .get() as { c: number };
+  return { deleted: dups.length, kept: kept.c };
+}
+
 /** Increment the view counter for a post (thread opened / cover fetched). */
 export function incrementViews(id: string): void {
   const conn = db();
