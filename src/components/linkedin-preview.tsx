@@ -2,6 +2,14 @@
 
 import { useMemo } from "react";
 import {
+  Globe,
+  Heart,
+  MessageSquare,
+  Repeat2,
+  ThumbsUp,
+  TrendingUp,
+} from "lucide-react";
+import {
   LINKEDIN_TEXT_LIMIT,
   tagsToHashtags,
 } from "@/lib/linkedin-text";
@@ -40,7 +48,7 @@ export function LinkedInPreview({ text, tags, photoUrl }: Props) {
                 Rishab Thapa
               </p>
               <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
-                Founder · just now · 🌐
+                Founder · just now · <Globe aria-hidden className="inline h-3 w-3 align-[-1px]" />
               </p>
             </div>
           </div>
@@ -65,8 +73,18 @@ export function LinkedInPreview({ text, tags, photoUrl }: Props) {
         )}
 
         {/* engagement bar placeholders */}
-        <div className="border-t border-zinc-200 px-4 py-2 text-xs text-zinc-400 dark:border-zinc-700 dark:text-zinc-600">
-          👍 📈 ❤️ 0 · 💬 0 · 🔁 0
+        <div className="flex items-center gap-4 border-t border-zinc-200 px-4 py-2 text-xs text-zinc-400 dark:border-zinc-700 dark:text-zinc-600">
+          <span className="flex items-center gap-1">
+            <ThumbsUp aria-hidden size={13} />
+            <TrendingUp aria-hidden size={13} />
+            <Heart aria-hidden size={13} /> 0
+          </span>
+          <span className="flex items-center gap-1">
+            <MessageSquare aria-hidden size={13} /> 0
+          </span>
+          <span className="flex items-center gap-1">
+            <Repeat2 aria-hidden size={13} /> 0
+          </span>
         </div>
       </article>
 
