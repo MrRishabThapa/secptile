@@ -52,6 +52,20 @@ const SWITCHER: { value: Switcher; label: string }[] = [
   { value: "zoho", label: "Zoho" },
 ];
 
+/** Client-side quick filters over the loaded rows (instant, no refetch). */
+const FILTERS: { value: "all" | "unread" | "attachments"; label: string }[] = [
+  { value: "all", label: "Everything" },
+  { value: "unread", label: "Unread" },
+  { value: "attachments", label: "Attachments" },
+];
+
+/**
+ * Local read tracking (Phase 7a/7b is READ-ONLY — the provider's unread
+ * state must not be modified; that lands with the write-scopes step). The
+ * id set lives in localStorage so opened mail stays dimmed across reloads.
+ */
+const READ_KEY = "secptile_mail_read";
+
 const PROVIDER_LABEL: Record<ProviderId, string> = {
   google: "Gmail",
   zoho: "Zoho",
@@ -100,6 +114,8 @@ export default function MailPage() {
   const [statuses, setStatuses] = useState<ProviderStatus[]>([]);
   // The open message/thread (drawer); key joins the reading pane to the row.
   const [open, setOpen] = useState<Row | null>(null);
+  const [filter, setFilter] = useState<"all" | "unread" | "attachments">("all");
+  const [readIds, setReadIds] = useState<Set<string>>(new Set());
   // Suppresses the listener race between the debounce and the switcher.
   const requestId = useRef(0);
 
@@ -111,6 +127,35 @@ export default function MailPage() {
       setFlash(FLAGS[flag]);
       window.history.replaceState(null, "", "/mail");
     }
+    // localStorage only after mount — no SSR mismatch.
+    try {
+      const stored = JSON.parse(localStorage.getItem(READ_KEY) ?? "[]");
+      if (Array.isArray(stored)) setReadIds(new Set<string>(stored as string[]));
+    } catch {
+      // Corrupted state: it's just read-tracking, start fresh.
+    }
+  }, []);
+
+  const rowKey = useCallback(
+    (row: Row) => `${row.accountId}:${row.id}`,
+    [],
+  );
+
+  /** Opened locally = marked read locally, nowhere else. */
+  const markRead = useCallback((key: string) => {
+    setReadIds((previous) => {
+      if (previous.has(key)) return previous;
+      const next = new Set(previous);
+      next.add(key);
+      // Sweeping readonly inboxes forever is silly; keep a sane tail.
+      const stored = [...next].slice(-5000);
+      try {
+        localStorage.setItem(READ_KEY, JSON.stringify(stored));
+      } catch {
+        // Storage full/blocked: marks simply don't persist this session.
+      }
+      return new Set(stored);
+    });
   }, []);
 
   const loadStatus = useCallback(() => {
@@ -205,6 +250,13 @@ export default function MailPage() {
     [statuses],
   );
 
+  const visible = useMemo(() => {
+    const effectivelyUnread = (row: Row) => row.unread && !readIds.has(rowKey(row));
+    if (filter === "unread") return rows.filter(effectivelyUnread);
+    if (filter === "attachments") return rows.filter((row) => row.hasAttachments);
+    return rows;
+  }, [rows, filter, readIds, rowKey]);
+
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-8">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
@@ -275,22 +327,41 @@ export default function MailPage() {
         </div>
       )}
 
-      <div className="mb-4 inline-flex rounded-full border border-zinc-200 p-1 dark:border-zinc-700">
-        {SWITCHER.map((tab) => (
-          <button
-            key={tab.value}
-            type="button"
-            onClick={() => setProvider(tab.value)}
-            aria-pressed={provider === tab.value}
-            className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${
-              provider === tab.value
-                ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
-                : "text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <div className="inline-flex rounded-full border border-zinc-200 p-1 dark:border-zinc-700">
+          {SWITCHER.map((tab) => (
+            <button
+              key={tab.value}
+              type="button"
+              onClick={() => setProvider(tab.value)}
+              aria-pressed={provider === tab.value}
+              className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${
+                provider === tab.value
+                  ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
+                  : "text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+        <div className="inline-flex rounded-full border border-zinc-200 p-1 dark:border-zinc-700">
+          {FILTERS.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => setFilter(option.value)}
+              aria-pressed={filter === option.value}
+              className={`rounded-full px-3 py-1 text-sm transition-colors ${
+                filter === option.value
+                  ? "bg-zinc-100 font-semibold text-zinc-900 dark:bg-zinc-800 dark:text-zinc-50"
+                  : "text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {issues.map((issue) => (
@@ -317,46 +388,52 @@ export default function MailPage() {
       )}
 
       <ul className="overflow-hidden rounded-2xl border border-zinc-200 dark:border-zinc-800">
-        {rows.map((row) => (
-          <li
-            key={row.id}
-            className={`border-b border-zinc-100 last:border-b-0 dark:border-zinc-800/70 ${
-              row.unread ? "bg-white dark:bg-zinc-900" : "bg-zinc-50/60 dark:bg-zinc-950/40"
-            }`}
-          >
-            {/* A real button keeps the reading pane reachable by keyboard. */}
-            <button
-              type="button"
-              onClick={() => setOpen(row)}
-              className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-zinc-100/70 dark:hover:bg-zinc-800/40"
+        {visible.map((row) => {
+          const effectiveUnread = row.unread && !readIds.has(rowKey(row));
+          return (
+            <li
+              key={row.id}
+              className={`border-b border-zinc-100 last:border-b-0 dark:border-zinc-800/70 ${
+                effectiveUnread ? "bg-white dark:bg-zinc-900" : "bg-zinc-50/60 dark:bg-zinc-950/40"
+              }`}
             >
-              <span
-                aria-hidden
-                className={`mt-2 size-2 shrink-0 rounded-full ${
-                  row.unread ? "bg-sky-500" : "bg-transparent"
-                }`}
-              />
-              <div className="w-44 shrink-0 truncate pt-0.5 text-sm">
-                <span className={`truncate ${row.unread ? "font-semibold text-zinc-900 dark:text-zinc-50" : "text-zinc-700 dark:text-zinc-300"}`}>
-                  {row.from?.name || row.from?.email || "(unknown sender)"}
-                </span>
-                <span className="ml-1.5 rounded bg-zinc-100 px-1 py-0.5 text-[10px] font-medium uppercase tracking-wide text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
-                  {PROVIDER_LABEL[row.accountId]}
-                </span>
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className={`truncate text-sm ${row.unread ? "font-semibold text-zinc-900 dark:text-zinc-50" : "text-zinc-700 dark:text-zinc-300"}`}>
-                  {row.subject}
-                </p>
-                <p className="truncate text-sm text-zinc-500 dark:text-zinc-400">{row.snippet}</p>
-              </div>
-              <div className="flex shrink-0 items-center gap-2 pt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
-                {row.hasAttachments && <Paperclip className="size-3.5" aria-hidden />}
-                <time dateTime={row.date || undefined}>{formatDate(row.date)}</time>
-              </div>
-            </button>
-          </li>
-        ))}
+              {/* A real button keeps the reading pane reachable by keyboard. */}
+              <button
+                type="button"
+                onClick={() => {
+                  setOpen(row);
+                  markRead(rowKey(row));
+                }}
+                className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-zinc-100/70 dark:hover:bg-zinc-800/40"
+              >
+                <span
+                  aria-hidden
+                  className={`mt-2 size-2 shrink-0 rounded-full ${
+                    effectiveUnread ? "bg-sky-500" : "bg-transparent"
+                  }`}
+                />
+                <div className="w-44 shrink-0 truncate pt-0.5 text-sm">
+                  <span className={`truncate ${effectiveUnread ? "font-semibold text-zinc-900 dark:text-zinc-50" : "text-zinc-500 dark:text-zinc-400"}`}>
+                    {row.from?.name || row.from?.email || "(unknown sender)"}
+                  </span>
+                  <span className="ml-1.5 rounded bg-zinc-100 px-1 py-0.5 text-[10px] font-medium uppercase tracking-wide text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
+                    {PROVIDER_LABEL[row.accountId]}
+                  </span>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className={`truncate text-sm ${effectiveUnread ? "font-semibold text-zinc-900 dark:text-zinc-50" : "text-zinc-600 dark:text-zinc-300"}`}>
+                    {row.subject}
+                  </p>
+                  <p className="truncate text-sm text-zinc-500 dark:text-zinc-400">{row.snippet}</p>
+                </div>
+                <div className="flex shrink-0 items-center gap-2 pt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
+                  {row.hasAttachments && <Paperclip className="size-3.5" aria-hidden />}
+                  <time dateTime={row.date || undefined}>{formatDate(row.date)}</time>
+                </div>
+              </button>
+            </li>
+          );
+        })}
         {loading && (
           <li className="px-4 py-8 text-center text-sm text-zinc-500 dark:text-zinc-400">
             Loading mailbox…
@@ -365,6 +442,11 @@ export default function MailPage() {
         {!loading && rows.length === 0 && issues.length === 0 && (
           <li className="px-4 py-10 text-center text-sm text-zinc-500 dark:text-zinc-400">
             Inbox is empty for this view.
+          </li>
+        )}
+        {!loading && visible.length === 0 && rows.length > 0 && (
+          <li className="px-4 py-10 text-center text-sm text-zinc-500 dark:text-zinc-400">
+            Nothing matches this filter on the loaded page.
           </li>
         )}
         {!loading && rows.length === 0 && issues.some((i) => i.code !== "error") && (
