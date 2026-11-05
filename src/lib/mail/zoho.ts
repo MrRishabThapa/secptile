@@ -151,7 +151,7 @@ export async function zohoExchangeCode(code: string): Promise<string> {
   type AccountEntry = { id: string; email: string };
   const entries = arrayField(accounts, ["data", "accounts"]).map((entry: Record<string, unknown>) => ({
     id: pickField(entry, ["accountId", "accountIdLong", "id"]),
-    email: pickField(entry, ["email", "fromAddress"]),
+    email: mailboxEmailOf(entry),
   }));
   const byHint = entries.find((entry: AccountEntry) => entry.email.toLowerCase() === mailboxHint);
   const accountId = (byHint ?? entries[0])?.id ?? "";
@@ -226,6 +226,27 @@ async function connectApi(accessToken: string, path: string, query?: URLSearchPa
     );
   }
   return (await response.json()) as Json;
+}
+
+/**
+ * Mailbox email, doc-verified live (Nov 2026): org accounts carry
+ * `emailAddress: [{ mailId, isPrimary, isAlias, … }]` — a nested identity
+ * list, NOT a flat string. Prefer the primary confirmed identity, fall back
+ * through the legacy flat keys for tenants that still send one.
+ */
+function mailboxEmailOf(entry: Record<string, unknown>): string {
+  const identities = arrayField(entry, ["emailAddress"]);
+  if (identities.length) {
+    const primary = identities.find(
+      (identity) =>
+        pickField(identity, ["isPrimary"]) === "true" &&
+        pickField(identity, ["isConfirmed"]) !== "false",
+    );
+    const chosen = primary ?? identities[0];
+    const mailId = pickField(chosen, ["mailId", "email", "address"]);
+    if (mailId) return mailId;
+  }
+  return pickField(entry, ["primaryEmailAddress", "mailboxAddress", "email", "fromAddress"]);
 }
 
 function resolveInboxFolder(accessToken: string, accountId: string): Promise<string | null> {
@@ -308,16 +329,29 @@ async function zohoGet(
 
 /* ------------------------------------------------------------- normalization */
 
+/** Zoho HTML-escapes address strings ("&quot;R&quot; &lt;a@b&gt;") — unquote. */
+function unescapeText(value: string): string {
+  return value
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&#0?39;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&");
+}
+
 /** Zoho addresses arrive as strings ("Name <a@b>") or objects — handle both. */
 function normalizeAddress(value: unknown): MailAddress | null {
   if (typeof value === "string") {
-    const angled = value.trim().match(/^(.*?)\s*<([^>]+)>\s*$/);
+    const text = unescapeText(value.trim());
+    const angled = text.match(/^(.*?)\s*<([^>]+)>\s*$/);
     if (angled) {
       const name = angled[1].trim().replace(/^"|"$/g, "").trim();
       return { email: angled[2].trim(), name: name || undefined };
     }
-    return /.+@.+/.test(value.trim()) ? { email: value.trim() } : null;
+    return /.+@.+/.test(text) ? { email: text } : null;
   }
+  // (objects unchanged)
   if (typeof value === "object" && value !== null) {
     const email = pickField(value, ["address", "email", "emailId"]);
     const name = pickField(value, ["name", "displayName", "senderName"]);
@@ -327,6 +361,13 @@ function normalizeAddress(value: unknown): MailAddress | null {
 }
 
 function addressList(value: unknown): MailAddress[] {
+  if (typeof value === "string") {
+    // Zoho joins whole recipient lists into one escaped string with commas.
+    return value
+      .split(",")
+      .map((chunk) => normalizeAddress(chunk))
+      .filter((a): a is MailAddress => a !== null);
+  }
   if (Array.isArray(value)) {
     return value.map(normalizeAddress).filter((a): a is MailAddress => a !== null);
   }
