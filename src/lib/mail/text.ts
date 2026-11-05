@@ -14,5 +14,8 @@ export function unescapeText(value: string): string {
     .replace(/&#0?39;/g, "'")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
-    .replace(/&amp;/g, "&");
+    .replace(/&amp;/g, "&")
+    // Zero-width/combining trackers some senders spam snippets with — they
+    // are invisible but still push real text off the row.
+    .replace(/[\u034F\u200B-\u200F\u2060\u2800]/g, "");
 }
