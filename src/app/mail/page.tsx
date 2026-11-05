@@ -148,7 +148,6 @@ export default function MailPage() {
   const [people, setPeople] = useState<string[]>(PEOPLE_DEFAULTS);
   const [peopleOpen, setPeopleOpen] = useState(false);
   const [peopleInput, setPeopleInput] = useState("");
-  const [readIds, setReadIds] = useState<Set<string>>(new Set());
   // Suppresses the listener race between the debounce and the switcher.
   const requestId = useRef(0);
 
