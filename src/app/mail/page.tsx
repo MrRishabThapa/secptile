@@ -314,6 +314,7 @@ export default function MailPage() {
 
   const openCompose = useCallback(
     (mode: "new" | "reply", seed?: MailMessageDetail) => {
+      setOpen(null);
       setComposeMode(mode);
       setComposeSeed(seed ?? null);
       setComposeOpen(true);
@@ -524,9 +525,10 @@ export default function MailPage() {
               <button
                 type="button"
                 onClick={() => {
-                  setOpen(row);
-                  markRead(rowKey(row));
-                }}
+                    setOpen(row);
+                    setComposeOpen(false);
+                    markRead(rowKey(row));
+                  }}
                 className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-zinc-100/70 dark:hover:bg-zinc-800/40"
               >
                 <span

@@ -80,10 +80,11 @@ export function ComposeDrawer({
     [providers, providerId],
   );
 
-  // Reply prefill: subject threading + quoted original body; user edits after.
+  // Reply prefill: To, subject threading + quoted original body; user edits after.
   useEffect(() => {
     if (!open || !seed) return;
     setProviderId(seed.accountId as "google" | "zoho");
+    setToInput(seed.from?.email ?? "");
     const alreadyRe = /^re:/i.test(seed.subject);
     setSubject(alreadyRe ? seed.subject : `Re: ${seed.subject}`);
     setBody(`${quoteOf(seed)}\n`);
@@ -176,13 +177,13 @@ export function ComposeDrawer({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-30">
+    <div className="fixed inset-x-0 bottom-0 z-30 flex justify-center pb-6">
       <div
         aria-hidden
         onClick={onClose}
-        className="absolute inset-0 bg-zinc-950/20"
+        className="fixed inset-0 bg-zinc-950/20"
       />
-      <section className="flex w-full max-w-2xl flex-col border-l border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-zinc-950">
+      <section className="relative w-full max-w-3xl flex-col border-t border-zinc-200 rounded-t-2xl bg-white shadow-2xl dark:border-zinc-800 dark:bg-zinc-950 mb-2">
         <header className="flex items-center gap-3 border-b border-zinc-200 px-5 py-4 dark:border-zinc-800">
           <h2 className="flex-1 text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
             {seed ? "Reply" : "New mail"}
