@@ -5,8 +5,7 @@ import { googleExchangeCode } from "@/lib/mail/google";
 /**
  * Gmail OAuth callback: verify the state cookie (CSRF, docs-required),
  * exchange the code, resolve identity and store tokens ENCRYPTED via the
- * store. Landing page is `/` with a `?mail=` flag for now — when the mail
- * page (7a, step 5) exists both mail callbacks switch to it in one commit.
+ * store. Lands on the mail page with a `?mail=` flag for its flash area.
  * Tokens never appear in this route's logs or redirects.
  */
 export async function GET(request: NextRequest) {
@@ -17,7 +16,7 @@ export async function GET(request: NextRequest) {
 
   const stateCookie = request.cookies.get("secptile_mail_google_state")?.value;
   const home = (flag: string) =>
-    new URL(`/?mail=${flag}`, request.nextUrl.origin);
+    new URL(`/mail?mail=${flag}`, request.nextUrl.origin);
 
   const back = (flag: string) => {
     const response = NextResponse.redirect(home(flag));
