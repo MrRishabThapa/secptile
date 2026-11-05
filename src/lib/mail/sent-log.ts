@@ -16,7 +16,8 @@ export type MailSentEntry = {
   /** ISO timestamp of the send. */
   ts: string;
   provider: MailProviderId;
-  from: string;
+  /** Resolved later from the connected account; route does not fake it. */
+  from?: string;
   to: string[];
   cc: string[];
   subject: string;
