@@ -103,29 +103,31 @@ export function MessageView({
       aria-label="Message"
       className="fixed inset-y-0 right-0 z-20 flex w-full max-w-xl flex-col border-l border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-950"
     >
-      <header className="flex items-start gap-3 border-b border-zinc-200 px-5 py-4 dark:border-zinc-800">
+      <header className="flex items-center gap-3 border-b border-zinc-200 px-5 py-4 dark:border-zinc-800">
         <h2 className="min-w-0 flex-1 text-lg font-semibold leading-tight tracking-tight text-zinc-900 dark:text-zinc-50">
           {subject || (messages === null && !error ? "Loading…" : "(no subject)")}
         </h2>
-        {canSend && onReply && messages && messages.length > 0 && (
+        <div className="flex items-center gap-2 shrink-0">
+          {canSend && onReply && messages && messages.length > 0 && (
+            <button
+              type="button"
+              onClick={() => onReply(messages[messages.length - 1])}
+              aria-label="Reply"
+              className="shrink-0 rounded-full border border-zinc-200 px-3 py-1.5 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
+            >
+              <Mail className="size-4 shrink-0" aria-hidden />
+              Reply
+            </button>
+          )}
           <button
             type="button"
-            onClick={() => onReply(messages[messages.length - 1])}
-            aria-label="Reply"
-            className="shrink-0 rounded-full border border-zinc-200 px-3 py-1.5 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
+            onClick={onClose}
+            aria-label="Close message"
+            className="rounded-full p-1.5 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
           >
-            <Mail className="size-4 shrink-0" aria-hidden />
-            Reply
+            <X className="size-4" aria-hidden />
           </button>
-        )}
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Close message"
-          className="rounded-full p-1.5 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
-        >
-          <X className="size-4" aria-hidden />
-        </button>
+        </div>
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
