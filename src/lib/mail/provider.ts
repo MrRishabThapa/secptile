@@ -4,6 +4,8 @@
  * All methods are server-side only — adapters do not leak to the client.
  */
 import "server-only";
+import { googleAdapter } from "./google";
+import { zohoAdapter } from "./zoho";
 import type {
   MailListQuery,
   MailMessageDetail,
@@ -46,4 +48,14 @@ export interface MailProvider {
     attachmentId: string,
     meta: { filename: string; mimeType: string },
   ): Promise<MailAttachmentBytes>;
+}
+
+/** Validated-id registry for the API routes — never called with user strings. */
+const ADAPTERS: Record<MailProviderId, MailProvider> = {
+  google: googleAdapter,
+  zoho: zohoAdapter,
+};
+
+export function getMailProvider(id: MailProviderId): MailProvider {
+  return ADAPTERS[id];
 }
