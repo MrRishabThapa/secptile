@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Inbox, Paperclip, RefreshCw, Search } from "lucide-react";
+import { MessageView } from "@/components/mail/message-view";
 
 /**
  * Unified read-only inbox (Phase 7a): All / Gmail / Zoho switcher, search,
@@ -32,6 +33,7 @@ type Row = {
   id: string;
   accountId: ProviderId;
   accountEmail: string;
+  threadId: string | null;
   from: { name?: string; email: string } | null;
   subject: string;
   snippet: string;
@@ -96,6 +98,8 @@ export default function MailPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [flash, setFlash] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
   const [statuses, setStatuses] = useState<ProviderStatus[]>([]);
+  // The open message/thread (drawer); key joins the reading pane to the row.
+  const [open, setOpen] = useState<Row | null>(null);
   // Suppresses the listener race between the debounce and the switcher.
   const requestId = useRef(0);
 
@@ -316,34 +320,41 @@ export default function MailPage() {
         {rows.map((row) => (
           <li
             key={row.id}
-            className={`flex items-start gap-3 border-b border-zinc-100 px-4 py-3 last:border-b-0 dark:border-zinc-800/70 ${
+            className={`border-b border-zinc-100 last:border-b-0 dark:border-zinc-800/70 ${
               row.unread ? "bg-white dark:bg-zinc-900" : "bg-zinc-50/60 dark:bg-zinc-950/40"
             }`}
           >
-            <span
-              aria-hidden
-              className={`mt-2 size-2 shrink-0 rounded-full ${
-                row.unread ? "bg-sky-500" : "bg-transparent"
-              }`}
-            />
-            <div className="w-44 shrink-0 truncate pt-0.5 text-sm">
-              <span className={`truncate ${row.unread ? "font-semibold text-zinc-900 dark:text-zinc-50" : "text-zinc-700 dark:text-zinc-300"}`}>
-                {row.from?.name || row.from?.email || "(unknown sender)"}
-              </span>
-              <span className="ml-1.5 rounded bg-zinc-100 px-1 py-0.5 text-[10px] font-medium uppercase tracking-wide text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
-                {PROVIDER_LABEL[row.accountId]}
-              </span>
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className={`truncate text-sm ${row.unread ? "font-semibold text-zinc-900 dark:text-zinc-50" : "text-zinc-700 dark:text-zinc-300"}`}>
-                {row.subject}
-              </p>
-              <p className="truncate text-sm text-zinc-500 dark:text-zinc-400">{row.snippet}</p>
-            </div>
-            <div className="flex shrink-0 items-center gap-2 pt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
-              {row.hasAttachments && <Paperclip className="size-3.5" aria-hidden />}
-              <time dateTime={row.date || undefined}>{formatDate(row.date)}</time>
-            </div>
+            {/* A real button keeps the reading pane reachable by keyboard. */}
+            <button
+              type="button"
+              onClick={() => setOpen(row)}
+              className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-zinc-100/70 dark:hover:bg-zinc-800/40"
+            >
+              <span
+                aria-hidden
+                className={`mt-2 size-2 shrink-0 rounded-full ${
+                  row.unread ? "bg-sky-500" : "bg-transparent"
+                }`}
+              />
+              <div className="w-44 shrink-0 truncate pt-0.5 text-sm">
+                <span className={`truncate ${row.unread ? "font-semibold text-zinc-900 dark:text-zinc-50" : "text-zinc-700 dark:text-zinc-300"}`}>
+                  {row.from?.name || row.from?.email || "(unknown sender)"}
+                </span>
+                <span className="ml-1.5 rounded bg-zinc-100 px-1 py-0.5 text-[10px] font-medium uppercase tracking-wide text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
+                  {PROVIDER_LABEL[row.accountId]}
+                </span>
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className={`truncate text-sm ${row.unread ? "font-semibold text-zinc-900 dark:text-zinc-50" : "text-zinc-700 dark:text-zinc-300"}`}>
+                  {row.subject}
+                </p>
+                <p className="truncate text-sm text-zinc-500 dark:text-zinc-400">{row.snippet}</p>
+              </div>
+              <div className="flex shrink-0 items-center gap-2 pt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
+                {row.hasAttachments && <Paperclip className="size-3.5" aria-hidden />}
+                <time dateTime={row.date || undefined}>{formatDate(row.date)}</time>
+              </div>
+            </button>
           </li>
         ))}
         {loading && (
@@ -374,6 +385,23 @@ export default function MailPage() {
             {moreBusy ? "Loading…" : "Load older messages"}
           </button>
         </div>
+      )}
+
+      {open && (
+        <>
+          <div
+            aria-hidden
+            onClick={() => setOpen(null)}
+            className="fixed inset-0 z-10 bg-zinc-950/20"
+          />
+          <MessageView
+            key={`${open.accountId}:${open.id}`}
+            provider={open.accountId}
+            id={open.id}
+            threadId={open.threadId}
+            onClose={() => setOpen(null)}
+          />
+        </>
       )}
     </main>
   );
