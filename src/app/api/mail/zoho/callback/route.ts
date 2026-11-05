@@ -8,8 +8,8 @@ import { zohoExchangeCode } from "@/lib/mail/zoho";
  * accounts-server=<URL> — a mismatch means the user's Zoho lives on a
  * different data center than ZOHO_ACCOUNTS_DOMAIN and the token would not
  * authorize mail.zoho.{dc}); exchange the code (valid 2 minutes), resolve
- * the mailbox + Inbox folder and store tokens ENCRYPTED. Landing page is
- * `/` with a `?mail=` flag until the mail page (7a, step 5) exists.
+ * the mailbox + Inbox folder and store tokens ENCRYPTED. Lands on the mail
+ * page with a `?mail=` flag for its flash area.
  */
 export async function GET(request: NextRequest) {
   const params = request.nextUrl.searchParams;
@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
   const accountsServer = params.get("accounts-server");
 
   const stateCookie = request.cookies.get("secptile_mail_zoho_state")?.value;
-  const home = (flag: string) => new URL(`/?mail=${flag}`, request.nextUrl.origin);
+  const home = (flag: string) => new URL(`/mail?mail=${flag}`, request.nextUrl.origin);
 
   const back = (flag: string) => {
     const response = NextResponse.redirect(home(flag));
