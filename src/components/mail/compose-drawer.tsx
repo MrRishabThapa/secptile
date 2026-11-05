@@ -330,7 +330,11 @@ export function ComposeDrawer({
               aria-label="Send message"
               className="inline-flex items-center gap-1.5 rounded-full bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white transition-colors disabled:opacity-50 disabled:pointer-events-none hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
             >
-              {busy ? "Sending…" : <Send className="size-3.5" aria-hidden /> Send}
+              {busy ? "Sending…" : (
+                <>
+                  <Send className="size-3.5" aria-hidden /> Send
+                </>
+              )}
             </button>
           </div>
         </footer>
