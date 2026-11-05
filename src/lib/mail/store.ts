@@ -37,6 +37,10 @@ export type MailTokenRecord = {
   /** Granted scopes as the provider reported them at connect time. */
   scope: string;
   connectedAt: string;
+  /** Provider-specific persistence (resolved at connect time). */
+  accountId?: string;
+  /** Zoho only: the Inbox folderId — its content endpoints require it. */
+  inboxFolderId?: string;
 };
 
 /** On-disk shape: secrets swapped for their envelopes. */
