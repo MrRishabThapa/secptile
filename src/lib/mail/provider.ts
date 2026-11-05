@@ -10,6 +10,8 @@ import type {
   MailListQuery,
   MailMessageDetail,
   MailPage,
+  MailSendRequest,
+  MailSentResult,
   MailThread,
   MailProviderId,
 } from "./types";
@@ -48,6 +50,13 @@ export interface MailProvider {
     attachmentId: string,
     meta: { filename: string; mimeType: string },
   ): Promise<MailAttachmentBytes>;
+
+  /**
+   * Send new mail or a reply — only ever invoked from the send route after
+   * the owner's explicit click. Adapters must fail with a reconnect-flagged
+   * MailError when the stored token lacks the provider's send scope.
+   */
+  send?(request: MailSendRequest): Promise<MailSentResult>;
 }
 
 /** Validated-id registry for the API routes — never called with user strings. */
