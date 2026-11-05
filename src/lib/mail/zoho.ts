@@ -31,6 +31,7 @@
 import "server-only";
 import { mailEncryptionKeyValid } from "./crypto";
 import { readMailToken, writeMailToken, type MailTokenRecord } from "./store";
+import { unescapeText } from "./text";
 import type {
   MailAddress,
   MailListQuery,
@@ -329,17 +330,6 @@ async function zohoGet(
 
 /* ------------------------------------------------------------- normalization */
 
-/** Zoho HTML-escapes address strings ("&quot;R&quot; &lt;a@b&gt;") — unquote. */
-function unescapeText(value: string): string {
-  return value
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;/g, "'")
-    .replace(/&#0?39;/g, "'")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&amp;/g, "&");
-}
-
 /** Zoho addresses arrive as strings ("Name <a@b>") or objects — handle both. */
 function normalizeAddress(value: unknown): MailAddress | null {
   if (typeof value === "string") {
@@ -564,7 +554,7 @@ function toSummary(
     to: addressList(row.to ?? row.toAddress),
     cc: addressList(row.cc ?? row.ccAddress),
     subject: pickField(row, ["subject"]) || "(no subject)",
-    snippet: pickField(row, ["summary", "excerpt", "preview"]),
+    snippet: unescapeText(pickField(row, ["summary", "excerpt", "preview"])),
     date: zohoDate(row.receivedTime),
     unread: status.startsWith("un"),
     hasAttachments:
