@@ -16,14 +16,34 @@ A personal voice journal that turns "here's how my day went" into a polished blo
 `GET /api/auth/linkedin/callback`, and posting is `POST /api/linkedin/post`.
 The registered redirect URL must match the callback exactly.
 
-## E-mail (Phase 7a/7b) — read-only unified inbox
+## E-mail (Phase 7a/7b/7d) — unified inbox, draft, send
 
-Gmail and Zoho Mail connect via their official OAuth APIs (scopes are
-**read-only**: `gmail.readonly` / `ZohoMail.accounts.READ,ZohoMail.folders.READ,ZohoMail.messages.READ`)
-and merge into one inbox (`/mail`): account switcher (All / Gmail / Zoho),
-search, unread badges, pagination, and a message view with sanitized HTML,
-attachment downloads streamed through the server, and Gmail thread view.
-Nothing is sent, modified, or deleted in this phase.
+Gmail and Zoho Mail connect via their official OAuth APIs and merge into one
+inbox (`/mail`): account switcher (All / Gmail / Zoho), search, unread
+badges, pagination, and a message view with sanitized HTML, attachment
+downloads streamed through the server, and Gmail thread view.
+
+Phases 7a/7b are read-only: nothing is sent, modified, or deleted there.
+
+Phase 7d adds **Draft / Reply / Send** (plain text in v1, attachments
+coming later):
+- **New mail** — button in the inbox header, choose a connected account.
+- **Reply** — button inside any opened message; quotes the original and sets
+  `In-Reply-To`/`References` (Gmail) or Zoho's reply action so threads stay
+  coherent.
+- **"Draft with AI"** — the same local OpenCode pipeline that generates the
+  daily blog drafts a professional reply/new mail from your brief plus the
+  quoted incoming mail. Incoming mail is treated strictly as untrusted data:
+  instructions embedded in it cannot steer the draft. Output is plain text,
+  no emojis (mechanically stripped as a second line of defense).
+- Every send happens on your **explicit Send click only** — there is no
+  autosend — and lands in a metadata-only local log
+  (`~/.secptile/mail-sent.json`, mode 0600; bodies never written).
+
+Sending needs one more scope per provider than the read-only inbox:
+`gmail.send` for Gmail and `ZohoMail.messages.CREATE` for Zoho — reconnect
+each account once to add them. Until then the inbox works as before and the
+UI offers no send surface for that account.
 
 Tokens live at `~/.secptile/mail.json` (mode 0600, outside the repo) with
 access/refresh tokens **AES-256-GCM-encrypted at rest** (key:
