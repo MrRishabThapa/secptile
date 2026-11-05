@@ -314,6 +314,7 @@ export default function MailPage() {
 
   const openCompose = useCallback(
     (mode: "new" | "reply", seed?: MailMessageDetail) => {
+      setOpen(null);
       setComposeMode(mode);
       setComposeSeed(seed ?? null);
       setComposeOpen(true);
@@ -335,7 +336,15 @@ export default function MailPage() {
           // Connect without env creds would land on the login route's honest
           // 500, which is not an action.
           if (!status || !status.configured) return null;
-          if (status.connected && !status.needsReconnect) return null;
+          // A connected account that still lacks the send scope needs a
+          // reconnect to add it — don't hide it behind a read-only state.
+          if (
+            status.connected &&
+            !status.needsReconnect &&
+            status.canSend
+          ) {
+            return null;
+          }
           return { id, status };
         })
         .filter((p): p is { id: ProviderId; status: ProviderStatus } => p !== null),
@@ -424,7 +433,9 @@ export default function MailPage() {
               href={`/api/mail/${id}/login`}
               className="rounded-full border border-zinc-200 px-3 py-1.5 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
             >
-              {status.needsReconnect ? `Reconnect ${PROVIDER_LABEL[id]}` : `Connect ${PROVIDER_LABEL[id]}`}
+              {status.needsReconnect || !status.canSend
+                ? `Reconnect ${PROVIDER_LABEL[id]}`
+                : `Connect ${PROVIDER_LABEL[id]}`}
               {status.accountEmail ? ` (${status.accountEmail})` : ""}
             </a>
           ))}
@@ -514,9 +525,10 @@ export default function MailPage() {
               <button
                 type="button"
                 onClick={() => {
-                  setOpen(row);
-                  markRead(rowKey(row));
-                }}
+                    setOpen(row);
+                    setComposeOpen(false);
+                    markRead(rowKey(row));
+                  }}
                 className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-zinc-100/70 dark:hover:bg-zinc-800/40"
               >
                 <span

@@ -625,20 +625,22 @@ export const zohoAdapter: MailProvider = {
     // Docs body (send + reply pages): fromAddress/toAddress/ccAddress/
     // bccAddress/subject/content/mailFormat/encoding, plus action:"Reply" and
     // the messageId in the path when replying.
-    const toAddress = request.to.map((address) => address.email.trim()).join(", ");
+    const toAddress = request.to.map((address) => address.email.trim()).join(",");
     if (!toAddress) {
       throw new MailError("Zoho send needs at least one To recipient.", 400);
     }
     const payload: Record<string, unknown> = {
       fromAddress,
       toAddress,
-      subject: request.subject.trim(),
+      subject: request.subject.trim() || "(no subject)",
       content: request.bodyText,
       mailFormat: "plaintext",
       encoding: "UTF-8",
     };
-    if (request.cc.length) payload.ccAddress = request.cc.map((a) => a.email.trim()).join(", ");
-    if (request.bcc.length) payload.bccAddress = request.bcc.map((a) => a.email.trim()).join(", ");
+    if (request.cc.length)
+      payload.ccAddress = request.cc.map((a) => a.email.trim()).join(",");
+    if (request.bcc.length)
+      payload.bccAddress = request.bcc.map((a) => a.email.trim()).join(",");
 
     if (request.replyTo) {
       const ids = splitMessageId(request.replyTo.messageId);
