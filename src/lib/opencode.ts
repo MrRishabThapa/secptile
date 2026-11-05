@@ -114,7 +114,7 @@ function parseRunOutput(stream: string): RunEvent[] {
 }
 
 /** Pull the JSON contract object out of the model's text (tolerates fences/prose). */
-function extractJson(text: string): unknown {
+export function extractJson(text: string): unknown {
   const cleaned = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
   try {
     return JSON.parse(cleaned);
