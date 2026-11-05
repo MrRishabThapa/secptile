@@ -79,17 +79,17 @@ Work **one phase at a time**. At the end of each phase, stop, summarize what was
 4. Keep changes small and reviewable. Prefer simple code over clever code.
 5. If a requirement is unclear, ask the owner instead of guessing.
 
-## 7. GIT RULE (most important): ONE FILE PER COMMIT
+## 7. GIT RULE (most important): ONE CHANGE PER COMMIT
 
-**Never make a bundled commit. Every commit contains exactly one file.**
+**Never make a bundled commit. Every commit represents exactly one change.**
 
+- Commit a file **immediately after each change** to it. If the same file is changed again later, that later change gets its own new commit — multiple commits touching the same file over time are correct and intentional ("one commit per action").
 - Do **not** use `git add .`, `git add -A`, `git add -u`, `git add <directory>`, or `git commit -a`.
-- Stage exactly one explicit file path: `git add path/to/file.ext`.
-- Before every commit, run `git diff --cached --name-only` and confirm it lists **exactly one file**. If it lists more, run `git restore --staged <extra files>` until only one remains.
+- Stage only the explicit path you just changed: `git add path/to/file.ext`. Before every commit, run `git diff --cached --name-only` and confirm the list contains **exactly the files that belong to this one change** (normally exactly one).
 - Then commit with a clear message: `git commit -m "type(scope): short description"` (Conventional Commits: `feat`, `fix`, `chore`, `docs`, `style`, `refactor`).
-- Deleting or renaming a file also counts as its own single-file commit.
-- This applies to generated scaffolding too. If a tool (e.g. `create-next-app`) creates many files, commit them **one by one**, each in its own commit.
-- Push after each commit or small group of commits, but never squash or amend multiple files into one commit.
+- Deleting or renaming a file also counts as its own change.
+- This applies to generated scaffolding too. If a tool (e.g. `create-next-app`) creates many files, commit them **one at a time**.
+- Push after each commit or small group of commits, but never squash or amend multiple changes into one commit.
 - Never force-push. Never rewrite history unless the owner asks.
 - Work on a feature branch per phase (e.g. `phase-1-text-loop`), not directly on `main`.
 
