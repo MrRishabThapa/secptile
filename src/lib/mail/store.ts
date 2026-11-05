@@ -20,9 +20,10 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import { decryptString, encryptString } from "./crypto";
+import { MAIL_PROVIDERS, type MailProviderId } from "./types";
 
-export const MAIL_PROVIDERS = ["google", "zoho"] as const;
-export type MailProviderId = (typeof MAIL_PROVIDERS)[number];
+export { MAIL_PROVIDERS };
+export type { MailProviderId };
 
 /** Decrypted, in-memory view used by the provider adapters. Server-side only. */
 export type MailTokenRecord = {
