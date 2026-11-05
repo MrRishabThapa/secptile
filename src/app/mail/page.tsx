@@ -1,14 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Inbox, Paperclip, Plus, RefreshCw, Search, UsersRound, X } from "lucide-react";
+import { Inbox, Mail, Paperclip, Plus, RefreshCw, Search, UsersRound, X } from "lucide-react";
 import { MessageView } from "@/components/mail/message-view";
+import { ComposeDrawer } from "@/components/mail/compose-drawer";
+import type { MailMessageDetail } from "@/lib/mail/types";
 
 /**
- * Unified read-only inbox (Phase 7a): All / Gmail / Zoho switcher, search,
+ * Unified inbox (Phase 7a/7b): All / Gmail / Zoho switcher, search,
  * unread badges, pagination. Connect buttons go straight to the provider's
- * OAuth login route; nothing here can send or modify — this phase is strictly
- * read-only.
+ * OAuth login route; the compose drawer (opened from here or from the
+ * reading pane) is the only write surface.
  */
 
 type ProviderId = "google" | "zoho";
@@ -20,6 +22,8 @@ type ProviderStatus = {
   connected: boolean;
   accountEmail: string | null;
   needsReconnect: boolean;
+  /** 7d: stored token grants send for this provider. */
+  canSend: boolean;
 };
 
 type Issue = {
@@ -143,6 +147,10 @@ export default function MailPage() {
   const [statuses, setStatuses] = useState<ProviderStatus[]>([]);
   // The open message/thread (drawer); key joins the reading pane to the row.
   const [open, setOpen] = useState<Row | null>(null);
+  // Compose drawer (Phase 7d): new mail or reply to a reading-pane message.
+  const [composeOpen, setComposeOpen] = useState(false);
+  const [composeMode, setComposeMode] = useState<"new" | "reply">("new");
+  const [composeSeed, setComposeSeed] = useState<MailMessageDetail | null>(null);
   const [filter, setFilter] = useState<"all" | "unread" | "attachments" | "important">("all");
   const [readIds, setReadIds] = useState<Set<string>>(new Set());
   const [people, setPeople] = useState<string[]>(PEOPLE_DEFAULTS);
@@ -293,6 +301,31 @@ export default function MailPage() {
     load({ reset: true });
   }, [load, loadStatus]);
 
+  // 7d: which providers can actually send (stored token has send scope).
+  const canSend = useMemo(
+    () => Object.fromEntries(statuses.map((s) => [s.id, s.canSend])),
+    [statuses],
+  );
+  const sendableProviders = useMemo(
+    () =>
+      statuses.filter((s) => s.connected && !s.needsReconnect && s.canSend),
+    [statuses],
+  );
+
+  const openCompose = useCallback(
+    (mode: "new" | "reply", seed?: MailMessageDetail) => {
+      setComposeMode(mode);
+      setComposeSeed(seed ?? null);
+      setComposeOpen(true);
+    },
+    [],
+  );
+
+  const onComposeSent = useCallback(() => {
+    setFlash({ tone: "ok", text: "Sent." });
+    setComposeOpen(false);
+  }, []);
+
   const pills = useMemo(
     () =>
       (["google", "zoho"] as ProviderId[])
@@ -349,6 +382,17 @@ export default function MailPage() {
           >
             <RefreshCw className="size-4" aria-hidden />
           </button>
+          {sendableProviders.length > 0 && (
+            <button
+              type="button"
+              onClick={() => openCompose("new")}
+              aria-label="New mail"
+              className="rounded-full border border-zinc-200 p-2 text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+              title="New mail"
+            >
+              <Mail className="size-4" aria-hidden />
+            </button>
+          )}
         </div>
       </div>
 
@@ -550,6 +594,8 @@ export default function MailPage() {
             provider={open.accountId}
             id={open.id}
             threadId={open.threadId}
+            canSend={canSend[open.accountId] ?? false}
+            onReply={(detail) => openCompose("reply", detail)}
             onClose={() => setOpen(null)}
           />
         </>
@@ -630,6 +676,21 @@ export default function MailPage() {
               </button>
             </div>
           </section>
+        </div>
+      )}
+      {composeOpen && (
+        <div className="fixed inset-y-0 right-0 z-30 flex items-start">
+          <ComposeDrawer
+            open={composeOpen}
+            onClose={() => setComposeOpen(false)}
+            providers={sendableProviders.map((s) => ({
+              id: s.id,
+              label: s.label,
+              accountEmail: s.accountEmail ?? s.id,
+            }))}
+            seed={composeSeed}
+            onSent={onComposeSent}
+          />
         </div>
       )}
     </main>

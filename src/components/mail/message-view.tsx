@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import DOMPurify from "dompurify";
 import { ExternalLink, FileDown, ImageOff, Images, Mail, X } from "lucide-react";
+import type { MailMessageDetail } from "@/lib/mail/types";
 
 /**
  * Reading pane (Phase 7b). Renders a message or, for Gmail rows with a
@@ -22,19 +23,9 @@ type Attachment = {
   size: number;
 };
 
-type Detail = {
-  id: string;
-  accountId: "google" | "zoho";
-  accountEmail: string;
-  from: Address | null;
-  to: Address[];
-  cc: Address[];
-  subject: string;
-  date: string;
-  bodyHtml?: string;
-  bodyText?: string;
-  attachments: Attachment[];
-};
+/** The server's full message shape — shared with the lib types so reply
+ * prefill and the send route speak the same contract. */
+type Detail = MailMessageDetail;
 
 export function MessageView({
   provider,
