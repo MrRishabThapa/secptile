@@ -381,6 +381,28 @@ function splitMessageId(id: string): { folderId: string; messageId: string } | n
   return match ? { folderId: match[1], messageId: match[2] } : null;
 }
 
+/** Zoho wraps most single-resource answers in { status, data: {...} }. */
+function dataOf(payload: Json): ZohoListItem {
+  if (payload && typeof payload === "object" && !Array.isArray(payload)) {
+    const record = payload as Record<string, unknown>;
+    if (typeof record.data === "object" && record.data !== null && !Array.isArray(record.data)) {
+      return record.data as ZohoListItem;
+    }
+  }
+  return (payload ?? {}) as ZohoListItem;
+}
+
+/** First present-and-object-valued key (e.g. attachmentInfo objects). */
+function pickObj(source: ZohoListItem, keys: string[]): ZohoListItem | null {
+  for (const key of keys) {
+    const value = source[key];
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      return value as ZohoListItem;
+    }
+  }
+  return null;
+}
+
 function zohoDate(value: unknown): string {
   const ms = Number(value);
   if (Number.isFinite(ms) && ms > 0) return new Date(ms).toISOString();
@@ -469,24 +491,31 @@ export const zohoAdapter: MailProvider = {
     }
     const base = `/api/accounts/${encodeURIComponent(record.accountId)}/folders/${ids.folderId}/messages/${ids.messageId}`;
 
-    const details = (await zohoGet(record, `${base}/details`, new URLSearchParams())) as ZohoListItem;
-    const content = (await zohoGet(record, `${base}/content`, new URLSearchParams())) as ZohoListItem;
-    const attachments = attachmentsOf(details);
+    // Doc-verified live shapes (Nov 2026): details/content answers arrive as
+    // { status: …, data: { …fields } } — unwrap data; dates are sentDateInGMT
+    // (ms as a string); absent cc reads literally "Not Provided" (address
+    // parsing rejects it — no "@" — so the header stays empty, honest).
+    const details = dataOf(await zohoGet(record, `${base}/details`, new URLSearchParams()));
+    const content = dataOf(await zohoGet(record, `${base}/content`, new URLSearchParams()));
+    const attachments = attachmentsOf(pickObj(details, ["attachmentInfo", "attachmentinfo"]) ?? details);
 
     return {
       id,
       accountId: "zoho",
       accountEmail: record.accountEmail,
       threadId: null,
-      from: normalizeAddress(details.from ?? details.fromAddress),
+      from: normalizeAddress(details.fromAddress ?? details.from ?? details.sender),
       to: addressList(details.to ?? details.toAddress),
       cc: addressList(details.cc ?? details.ccAddress),
       subject: pickField(details, ["subject"]) || "(no subject)",
       snippet: pickField(details, ["summary", "excerpt"]),
-      date: zohoDate(details.receivedTime),
+      date: zohoDate(details.sentDateInGMT ?? details.receivedTime),
       unread: false,
       hasAttachments: attachments.length > 0,
+      // content.content is proper HTML (entities are real markup) — the
+      // ADDRESS strings are the escaped ones, handled in normalizeAddress.
       bodyHtml: typeof content.content === "string" ? content.content : undefined,
+      bodyText: typeof content.body === "string" ? content.body : undefined,
       attachments,
     };
   },
