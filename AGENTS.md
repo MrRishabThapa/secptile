@@ -64,7 +64,12 @@ Work **one phase at a time**. At the end of each phase, stop, summarize what was
 - **Phase 4: Blog publishing.** Approved posts saved into the local SQLite blog DB (`~/.secptile/blog/blog.db`, `node:sqlite`) with a **mandatory cover photo** (`/api/photos` upload, JPEG/PNG/GIF ≤ 8 MB). No repos, no commits, no pushes.
 - **Phase 5: LinkedIn publishing.** OAuth flow, token storage and refresh handling (tokens expire roughly every 60 days), post creation with the optional cover photo attached (Images API), only after approval.
 - **Phase 6: Desktop voice assistant.** Always-on local wake-word daemon ("hey secptile" / "hey secp"), voice commands ("open system", "close system"), voice-driven daily updates into the journal flow, systemd --user services, privacy controls (mute, mic indicator).
-- **Phase 7: Polish.** Streaming responses, history of past days, error states, accessibility.
+- **Phase 7a: E-mail — Accounts + unified inbox (read-only).** Connect Gmail and Zoho Mail via OAuth (read-only scopes only); one unified inbox list with account switcher, search, pagination, polling refresh.
+- **Phase 7b: E-mail — Message view.** Full message view: headers, sanitized body in a sandboxed iframe, attachments (download on click, streamed server-side), Gmail thread view.
+- **Phase 7c: E-mail — AI helpers.** OpenCode-assisted summaries/draft suggestions for mail, with strict untrusted-content boundaries.
+- **Phase 7d: E-mail — Reply/compose.** Write access via provider APIs (send/reply scopes), approval-gated like LinkedIn publishing.
+- **Phase 7e: E-mail — Voice mail commands.** Voice-driven mail actions through the Phase 6 assistant ("Hey Secptile, read my mail…").
+- **Phase 8: Polish.** Streaming responses, history of past days, error states, accessibility.
 
 ## 6. Hard rules
 
