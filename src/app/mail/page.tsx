@@ -190,7 +190,11 @@ export default function MailPage() {
       (["google", "zoho"] as ProviderId[])
         .map((id) => {
           const status = statuses.find((s) => s.id === id);
-          if (!status || (status.connected && !status.needsReconnect)) return null;
+          // Unconfigured providers stay in the issues banner only — clicking
+          // Connect without env creds would land on the login route's honest
+          // 500, which is not an action.
+          if (!status || !status.configured) return null;
+          if (status.connected && !status.needsReconnect) return null;
           return { id, status };
         })
         .filter((p): p is { id: ProviderId; status: ProviderStatus } => p !== null),
