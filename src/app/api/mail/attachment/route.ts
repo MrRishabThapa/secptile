@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { connection } from "next/server";
 import { z } from "zod";
 import { getMailProvider } from "@/lib/mail/provider";
-import type { MailProviderId } from "@/lib/mail/types";
+import { MailError, type MailProviderId } from "@/lib/mail/types";
 
 /** Attachment downloads: server-streamed, never proxied through the client. */
 const querySchema = z.object({
@@ -70,14 +70,18 @@ export async function GET(request: Request) {
       },
     });
   } catch (error) {
-    // Broken pipes while streaming abort mid-flight; JSON errors must not
-    // use content-disposition attachment as some clients may have started
-    // receiving bytes already — the membership+size gates come first, so an
-    // error here is either provider-side or auth-side (disk never touched).
-    console.error("[mail/attachment]", error);
+    const mail = error instanceof MailError ? error : null;
+    if (!mail) {
+      // Unexpected shapes are logged server-side, never mirrored to clients.
+      console.error("[mail/attachment]", error);
+    }
     return NextResponse.json(
-      { error: "The attachment could not be fetched." },
-      { status: 502 },
+      {
+        error:
+          mail?.message ?? "The attachment could not be fetched.",
+        needsReconnect: Boolean(mail?.needsReconnect),
+      },
+      { status: mail ? mail.status : 502 },
     );
   }
 }
