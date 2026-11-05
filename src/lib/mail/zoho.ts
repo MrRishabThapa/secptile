@@ -37,18 +37,24 @@ import type {
   MailListQuery,
   MailMessageDetail,
   MailPage,
+  MailSendRequest,
+  MailSentResult,
 } from "./types";
 import { MailError } from "./types";
 import type { MailProvider, MailAttachmentBytes } from "./provider";
 
 /* ------------------------------------------------------------------ config */
 
-/** Read-only scopes, comma-separated (Zoho format). No write scopes. */
+/** Read scopes + the 7d send scope, comma-separated (Zoho format). */
 const ZOHO_SCOPES = [
   "ZohoMail.accounts.READ",
   "ZohoMail.folders.READ",
   "ZohoMail.messages.READ",
+  /** 7d: create messages = send/reply (docs: post-send/post-reply pages). */
+  "ZohoMail.messages.CREATE",
 ].join(",");
+
+const ZOHO_CREATE_SCOPE = "ZohoMail.messages.CREATE";
 
 /** Access tokens live one hour — refresh with a wider margin than Gmail's. */
 const REFRESH_MARGIN_MS = 5 * 60_000;
@@ -328,6 +334,78 @@ async function zohoGet(
   return (await response.json()) as Json;
 }
 
+/* ---------------------------------------------------------------- send (7d) */
+
+/**
+ * POST JSON with one transparent refresh-and-retry. Zoho signals API-level
+ * errors with HTTP 200 + {status:"error", code/message} — catch those too.
+ */
+async function zohoPost(
+  record: MailTokenRecord,
+  path: string,
+  body: Json,
+  retry = true,
+): Promise<Json> {
+  const { mailDomain } = config();
+  const response = await fetch(`https://${mailDomain}${path}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Zoho-oauthtoken ${record.accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  if (response.status === 401 && retry && record.refreshToken) {
+    const refreshed = await getAccessToken({ force: true });
+    return zohoPost(refreshed, path, body, false);
+  }
+  if (!response.ok) {
+    const detail = (await response.text()).split("\n")[0]?.trim().slice(0, 200);
+    throw new MailError(
+      `Zoho Mail send failed (${response.status})${detail ? `: ${detail}` : ""}`,
+      response.status === 429 ? 429 : 502,
+    );
+  }
+  const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+  if (payload.status === "error") {
+    const code = String(payload.code ?? "unknown");
+    const message = String(payload.message ?? "Zoho rejected the send");
+    throw new MailError(`Zoho Mail send rejected (${code}): ${message}`, 502);
+  }
+  return payload as Json;
+}
+
+/** Gate: the stored token scope must carry the create scope (7d reconnect). */
+function sendableRecordOrThrow(record: MailTokenRecord): void {
+  if (!record.scope.split(/[\s,]+/).includes(ZOHO_CREATE_SCOPE)) {
+    throw new MailError(
+      "Zoho token predates sending permission — reconnect the account to enable Send.",
+      403,
+      true,
+    );
+  }
+}
+
+/**
+ * From address: trust the stored mailbox when it's a real email (post-
+ * reconnect records are), otherwise re-resolve /api/accounts and heal the
+ * stored accountEmail — sending from a placeholder is never acceptable.
+ */
+async function resolveFromAddress(record: MailTokenRecord): Promise<string> {
+  if (/.+@.+\..+/.test(record.accountEmail)) return record.accountEmail;
+  const accounts = await connectApi(record.accessToken, "/api/accounts");
+  const entries = arrayField(accounts, ["data", "accounts"]);
+  const mine =
+    entries.find((entry) => pickField(entry, ["accountId", "accountIdLong", "id"]) === record.accountId) ??
+    entries[0];
+  const email = mine ? mailboxEmailOf(mine) : "";
+  if (!/.+@.+/.test(email)) {
+    throw new MailError("Zoho send-from identity could not be resolved — reconnect the account.", 502, true);
+  }
+  await writeMailToken({ ...record, accountEmail: email });
+  return email;
+}
+
 /* ------------------------------------------------------------- normalization */
 
 /** Zoho addresses arrive as strings ("Name <a@b>") or objects — handle both. */
@@ -535,7 +613,60 @@ export const zohoAdapter: MailProvider = {
     }
     return { ...meta, bytes: Buffer.from(await response.arrayBuffer()) };
   },
+
+  async send(request: MailSendRequest): Promise<MailSentResult> {
+    const record = await readMailToken("zoho");
+    if (!record?.accountId) {
+      throw new MailError("Zoho Mail is not connected — run the OAuth flow first.", 400, true);
+    }
+    sendableRecordOrThrow(record);
+    const fromAddress = await resolveFromAddress(record);
+
+    // Docs body (send + reply pages): fromAddress/toAddress/ccAddress/
+    // bccAddress/subject/content/mailFormat/encoding, plus action:"Reply" and
+    // the messageId in the path when replying.
+    const toAddress = request.to.map((address) => address.email.trim()).join(", ");
+    if (!toAddress) {
+      throw new MailError("Zoho send needs at least one To recipient.", 400);
+    }
+    const payload: Record<string, unknown> = {
+      fromAddress,
+      toAddress,
+      subject: request.subject.trim(),
+      content: request.bodyText,
+      mailFormat: "plaintext",
+      encoding: "UTF-8",
+    };
+    if (request.cc.length) payload.ccAddress = request.cc.map((a) => a.email.trim()).join(", ");
+    if (request.bcc.length) payload.bccAddress = request.bcc.map((a) => a.email.trim()).join(", ");
+
+    if (request.replyTo) {
+      const ids = splitMessageId(request.replyTo.messageId);
+      if (!ids) throw new MailError("Malformed Zoho message id for reply.", 400);
+      payload.action = "Reply";
+      await zohoPost(
+        record,
+        `/api/accounts/${encodeURIComponent(record.accountId)}/messages/${ids.messageId}`,
+        payload,
+      );
+    } else {
+      await zohoPost(
+        record,
+        `/api/accounts/${encodeURIComponent(record.accountId)}/messages`,
+        payload,
+      );
+    }
+
+    // Zoho's answer carries no stable sent-message id — null is honest;
+    // the local sent log records the send regardless.
+    return { provider: "zoho", id: null };
+  },
 };
+
+/** Whether an already-stored token scope grants sending (status route flag). */
+export function zohoTokenCanSend(scope: string): boolean {
+  return scope.split(/[\s,]+/).includes(ZOHO_CREATE_SCOPE);
+}
 
 function toSummary(
   row: ZohoListItem,
