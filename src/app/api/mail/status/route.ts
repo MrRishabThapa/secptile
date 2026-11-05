@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { connection } from "next/server";
 import { readMailToken } from "@/lib/mail/store";
-import { googleConfigured } from "@/lib/mail/google";
-import { zohoConfigured } from "@/lib/mail/zoho";
+import { googleConfigured, googleTokenCanSend } from "@/lib/mail/google";
+import { zohoConfigured, zohoTokenCanSend } from "@/lib/mail/zoho";
 import { MAIL_PROVIDERS, type MailProviderId } from "@/lib/mail/types";
 
 // cacheComponents convention in this repo: route handlers opt out of
@@ -14,6 +14,10 @@ const LABELS: Record<MailProviderId, string> = { google: "Gmail", zoho: "Zoho" }
 const CONFIGURED: Record<MailProviderId, () => boolean> = {
   google: googleConfigured,
   zoho: zohoConfigured,
+};
+const CAN_SEND: Record<MailProviderId, (scope: string) => boolean> = {
+  google: googleTokenCanSend,
+  zoho: zohoTokenCanSend,
 };
 
 /**
@@ -39,6 +43,8 @@ export async function GET() {
         connected: Boolean(record),
         accountEmail: record?.accountEmail ?? null,
         needsReconnect: Boolean(record && !record.refreshToken),
+        /** 7d: the stored scope actually grants send (false until reconnect). */
+        canSend: Boolean(record && CAN_SEND[id](record.scope)),
       };
     }),
   );
