@@ -20,7 +20,8 @@ const CONFIGURED: Record<MailProviderId, () => boolean> = {
 };
 
 const querySchema = z.object({
-  provider: z.enum(["all", "gmail", "zoho"]).default("all"),
+  // Public ids match MailProviderId ("google"); "Gmail" is a display label.
+  provider: z.enum(["all", "google", "zoho"]).default("all"),
   /** Base64url JSON map { [providerId]: providerCursor } — owned by this API. */
   cursor: z.string().max(512).nullable().optional(),
   search: z.string().max(240).optional(),
