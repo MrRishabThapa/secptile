@@ -253,7 +253,9 @@ async function gmailApi(
 ): Promise<unknown> {
   const record = await getAccessToken();
   const url = new URL(`${API_BASE}/users/me${path}`);
-  query.forEach((value, key) => url.searchParams.set(key, value));
+  // APPEND, not set: metadataHeaders is legitimately repeated (one per
+  // header name); set() would collapse them to the last value.
+  query.forEach((value, key) => url.searchParams.append(key, value));
   const response = await fetch(url, {
     headers: { Authorization: `Bearer ${record.accessToken}` },
   });
