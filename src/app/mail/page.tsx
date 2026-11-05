@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Inbox, Paperclip, RefreshCw, Search } from "lucide-react";
+import { Inbox, Paperclip, Plus, RefreshCw, Search, UsersRound, X } from "lucide-react";
 import { MessageView } from "@/components/mail/message-view";
 
 /**
@@ -53,11 +53,40 @@ const SWITCHER: { value: Switcher; label: string }[] = [
 ];
 
 /** Client-side quick filters over the loaded rows (instant, no refetch). */
-const FILTERS: { value: "all" | "unread" | "attachments"; label: string }[] = [
+const FILTERS: { value: "all" | "unread" | "attachments" | "important"; label: string }[] = [
   { value: "all", label: "Everything" },
   { value: "unread", label: "Unread" },
   { value: "attachments", label: "Attachments" },
+  { value: "important", label: "Important" },
 ];
+
+/**
+ * "Important" = mail from PEOPLE, not from machines (promos, notifications,
+ * security blasts). A local allowlist of sender patterns the owner curates:
+ *   - "@domain.tld"  → any sender whose email ends there (e.g. @iic.edu.np)
+ *   - "name@x.y"     → that exact sender
+ * Match is on the sender email (case-insensitive). Stored in localStorage —
+ * it is presentation-level filtering (nothing is moved or muted at the
+ * provider; the raw inbox stays untouched and reachable via Everything).
+ */
+const PEOPLE_KEY = "secptile_mail_people";
+
+/** Reasonable first-run seed; the owner edits it, this is only a scaffold. */
+const PEOPLE_DEFAULTS = ["@iic.edu.np", "@gmail.com"];
+
+function senderMatchesPeople(
+  row: Row,
+  patterns: string[],
+): boolean {
+  const email = row.from?.email?.toLowerCase();
+  if (!email) return false;
+  return patterns.some((pattern) => {
+    const lowered = pattern.trim().toLowerCase();
+    if (!lowered) return false;
+    if (lowered.startsWith("@")) return email.endsWith(lowered);
+    return email.includes(lowered);
+  });
+}
 
 /**
  * Local read tracking (Phase 7a/7b is READ-ONLY — the provider's unread
@@ -114,7 +143,11 @@ export default function MailPage() {
   const [statuses, setStatuses] = useState<ProviderStatus[]>([]);
   // The open message/thread (drawer); key joins the reading pane to the row.
   const [open, setOpen] = useState<Row | null>(null);
-  const [filter, setFilter] = useState<"all" | "unread" | "attachments">("all");
+  const [filter, setFilter] = useState<"all" | "unread" | "attachments" | "important">("all");
+  const [readIds, setReadIds] = useState<Set<string>>(new Set());
+  const [people, setPeople] = useState<string[]>(PEOPLE_DEFAULTS);
+  const [peopleOpen, setPeopleOpen] = useState(false);
+  const [peopleInput, setPeopleInput] = useState("");
   const [readIds, setReadIds] = useState<Set<string>>(new Set());
   // Suppresses the listener race between the debounce and the switcher.
   const requestId = useRef(0);
@@ -133,6 +166,14 @@ export default function MailPage() {
       if (Array.isArray(stored)) setReadIds(new Set<string>(stored as string[]));
     } catch {
       // Corrupted state: it's just read-tracking, start fresh.
+    }
+    try {
+      const stored = JSON.parse(localStorage.getItem(PEOPLE_KEY) ?? "null");
+      if (Array.isArray(stored) && stored.every((entry) => typeof entry === "string")) {
+        setPeople(stored as string[]);
+      }
+    } catch {
+      // Corrupted patterns: the defaults apply again, harmless.
     }
   }, []);
 
@@ -157,6 +198,25 @@ export default function MailPage() {
       return new Set(stored);
     });
   }, []);
+
+  const persistPeople = useCallback((patterns: string[]) => {
+    setPeople(patterns);
+    try {
+      localStorage.setItem(PEOPLE_KEY, JSON.stringify(patterns));
+    } catch {
+      // Same deal: in-memory this session.
+    }
+  }, []);
+
+  const addPeople = useCallback(() => {
+    const pattern = peopleInput.trim().toLowerCase().replace(/^mailto:/, "");
+    if (!pattern || people.includes(pattern)) {
+      setPeopleInput("");
+      return;
+    }
+    persistPeople([...people, pattern]);
+    setPeopleInput("");
+  }, [people, peopleInput, persistPeople]);
 
   const loadStatus = useCallback(() => {
     void fetch("/api/mail/status")
@@ -254,8 +314,9 @@ export default function MailPage() {
     const effectivelyUnread = (row: Row) => row.unread && !readIds.has(rowKey(row));
     if (filter === "unread") return rows.filter(effectivelyUnread);
     if (filter === "attachments") return rows.filter((row) => row.hasAttachments);
+    if (filter === "important") return rows.filter((row) => senderMatchesPeople(row, people));
     return rows;
-  }, [rows, filter, readIds, rowKey]);
+  }, [rows, filter, readIds, people, rowKey]);
 
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-8">
@@ -362,6 +423,15 @@ export default function MailPage() {
             </button>
           ))}
         </div>
+        <button
+          type="button"
+          onClick={() => setPeopleOpen(true)}
+          aria-label="Edit important senders"
+          title="Edit important senders"
+          className="rounded-full border border-zinc-200 p-2 text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+        >
+          <UsersRound className="size-4" aria-hidden />
+        </button>
       </div>
 
       {issues.map((issue) => (
@@ -484,6 +554,84 @@ export default function MailPage() {
             onClose={() => setOpen(null)}
           />
         </>
+      )}
+
+      {peopleOpen && (
+        <div className="fixed inset-0 z-30 flex items-center justify-center p-6">
+          <div
+            aria-hidden
+            onClick={() => setPeopleOpen(false)}
+            className="absolute inset-0 bg-zinc-950/30"
+          />
+          <section
+            aria-label="Important senders"
+            className="relative w-full max-w-md rounded-2xl border border-zinc-200 bg-white p-5 shadow-xl dark:border-zinc-800 dark:bg-zinc-950"
+          >
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-base font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
+                Important senders
+              </h2>
+              <button
+                type="button"
+                onClick={() => setPeopleOpen(false)}
+                aria-label="Close"
+                className="rounded-full p-1.5 text-zinc-500 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800"
+              >
+                <X className="size-4" aria-hidden />
+              </button>
+            </div>
+            <p className="mb-3 text-sm text-zinc-500 dark:text-zinc-400">
+              The <strong>Important</strong> filter shows only mail from senders
+              matching these patterns. <code>@domain</code> matches anyone at
+              that domain; a full address matches exactly. Purely local — the
+              inbox itself is never touched or muted.
+            </p>
+            <ul className="mb-3 flex flex-wrap gap-2">
+              {people.map((pattern) => (
+                <li key={pattern}>
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
+                    {pattern}
+                    <button
+                      type="button"
+                      onClick={() => persistPeople(people.filter((p) => p !== pattern))}
+                      aria-label={`Remove ${pattern}`}
+                      className="text-zinc-400 transition-colors hover:text-zinc-900 dark:hover:text-zinc-100"
+                    >
+                      <X className="size-3" aria-hidden />
+                    </button>
+                  </span>
+                </li>
+              ))}
+              {people.length === 0 && (
+                <li className="text-sm text-zinc-400">No patterns — Important stays empty.</li>
+              )}
+            </ul>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={peopleInput}
+                onChange={(event) => setPeopleInput(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    addPeople();
+                  }
+                }}
+                placeholder="@iic.edu.np or name@example.com"
+                aria-label="New sender pattern"
+                className="min-w-0 flex-1 rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-900 placeholder-zinc-400 outline-none focus:border-zinc-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50 dark:placeholder-zinc-500"
+              />
+              <button
+                type="button"
+                onClick={addPeople}
+                className="inline-flex items-center gap-1.5 rounded-full bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+              >
+                <Plus className="size-3.5" aria-hidden />
+                Add
+              </button>
+            </div>
+          </section>
+        </div>
       )}
     </main>
   );
