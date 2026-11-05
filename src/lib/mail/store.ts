@@ -135,6 +135,11 @@ export async function readMailToken(
       scope: stored.scope,
       connectedAt: stored.connectedAt,
     };
+    // Provider-specific extras must round-trip (Zoho persists accountId and
+    // the Inbox folderId at connect time) — the explicit shape above misses
+    // optional fields, so they are appended only when present.
+    if (stored.accountId) record.accountId = stored.accountId;
+    if (stored.inboxFolderId) record.inboxFolderId = stored.inboxFolderId;
     if (!record.accountEmail || !record.accessToken) return null;
     return record;
   } catch (error) {

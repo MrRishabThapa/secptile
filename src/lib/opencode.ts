@@ -114,7 +114,7 @@ function parseRunOutput(stream: string): RunEvent[] {
 }
 
 /** Pull the JSON contract object out of the model's text (tolerates fences/prose). */
-function extractJson(text: string): unknown {
+export function extractJson(text: string): unknown {
   const cleaned = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
   try {
     return JSON.parse(cleaned);
@@ -281,4 +281,56 @@ export async function runJournalPhase(
   }
 
   return { sessionId, phase: parsed.data };
+}
+
+/**
+ * Generic one-shot run for other surfaces (Phase 7d: mail drafting). Same
+ * CLI plumbing as the journal loop, no journal-specific prompt or schema —
+ * the caller owns the contract entirely. Returns the model's final text and
+ * the session id (so a follow-up turn can pass --session later). Timeout is
+ * capped lower here by default: a mail draft should never take 5 minutes.
+ */
+export async function runOpenCodeText(
+  prompt: string,
+  options: { sessionId?: string; timeoutMs?: number } = {},
+): Promise<{ sessionId: string; text: string }> {
+  const bin = process.env.OPENCODE_BIN?.trim() || "opencode";
+  const cwd = await workspace();
+  const args = ["run", "--format", "json"];
+
+  const model = process.env.OPENCODE_MODEL?.trim();
+  if (model) args.push("--model", model);
+  const serverUrl = process.env.OPENCODE_SERVER_URL?.trim();
+  if (serverUrl) args.push("--server", serverUrl);
+  if (options.sessionId) args.push("--session", options.sessionId);
+  args.push(prompt);
+
+  const output = await runBin(bin, args, cwd, options.timeoutMs ?? 120_000).catch((error) => {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new OpenCodeError(`Could not start '${bin}': ${message}`);
+  });
+
+  if (output.timedOut) {
+    throw new OpenCodeError(
+      `OpenCode took longer than ${(options.timeoutMs ?? 120_000) / 1000}s to draft. Try again.`,
+      504,
+    );
+  }
+  if (!output.stdout.trim() && !output.stderr.trim()) {
+    throw new OpenCodeError("OpenCode returned no response.", 502);
+  }
+
+  const events = parseRunOutput(output.stdout + (output.stderr ? `\n${output.stderr}` : ""));
+  const textParts = events.filter(
+    (event) => event.type === "text" && typeof event.part?.text === "string",
+  );
+  const text = textParts.at(-1)?.part?.text ?? "";
+  const sessionId =
+    textParts.at(-1)?.sessionID ??
+    events.findLast((event) => typeof event.sessionID === "string")?.sessionID;
+
+  if (!text.trim()) {
+    throw new OpenCodeError("OpenCode returned no response text.");
+  }
+  return { sessionId: sessionId ?? "", text };
 }
