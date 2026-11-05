@@ -22,6 +22,7 @@ export type MailMessageSummary = {
   threadId: string | null;
   from: MailAddress | null;
   to: MailAddress[];
+  cc: MailAddress[];
   subject: string;
   snippet: string;
   /** ISO timestamp (provider's receive time). */
