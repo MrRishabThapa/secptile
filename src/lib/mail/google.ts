@@ -38,6 +38,8 @@ import type {
   MailListQuery,
   MailMessageDetail,
   MailPage,
+  MailSendRequest,
+  MailSentResult,
   MailThread,
   MailProviderId,
 } from "./types";
@@ -51,7 +53,13 @@ const TOKEN_URL = "https://oauth2.googleapis.com/token";
 const API_BASE = "https://gmail.googleapis.com/gmail/v1";
 
 /** Minimum read-only scope (docs: gmail.readonly = "view your email"). */
-const GMAIL_SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"];
+const GMAIL_SCOPES = [
+  "https://www.googleapis.com/auth/gmail.readonly",
+  /** 7d: sensitive (not restricted) — "send messages only", no read/modify. */
+  "https://www.googleapis.com/auth/gmail.send",
+];
+
+const GMAIL_SEND_SCOPE = "https://www.googleapis.com/auth/gmail.send";
 
 /** Headers worth carrying to the list rows. */
 const LIST_HEADERS = ["From", "To", "Cc", "Subject", "Date"];
@@ -210,6 +218,21 @@ async function getAccessToken(options: { force?: boolean } = {}) {
   return refreshed;
 }
 
+/**
+ * Gate for send: the token's granted scope must actually include gmail.send
+ * (older read-only connects don't) — fail reconnect-flagged, never guessed.
+ */
+function sendableRecordOrThrow(record: MailTokenRecord): void {
+  const granted = record.scope.split(/[\s,]+/);
+  if (!granted.includes(GMAIL_SEND_SCOPE)) {
+    throw new MailError(
+      "Gmail token predates sending permission — reconnect the account to enable Send.",
+      403,
+      true,
+    );
+  }
+}
+
 async function usersMeGet(path: string, accessToken: string, query?: URLSearchParams) {
   const url = new URL(`${API_BASE}/users/me${path}`);
   query?.forEach((value, key) => url.searchParams.set(key, value));
@@ -274,7 +297,107 @@ async function gmailApi(
   return (await response.json()) as unknown;
 }
 
-/* ------------------------------------------------------------- normalization */
+/** POST with the same single transparent refresh-and-retry on 401. */
+async function gmailPost(path: string, body: unknown, retryOn401 = true): Promise<unknown> {
+  const record = await getAccessToken();
+  const response = await fetch(`${API_BASE}/users/me${path}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${record.accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  if (response.status === 401 && retryOn401) {
+    return gmailPost(path, body, false);
+  }
+  if (!response.ok) {
+    const detail = (await response.text()).split("\n")[0]?.trim().slice(0, 200);
+    throw new MailError(
+      `Gmail send failed (${response.status})${detail ? `: ${detail}` : ""}`,
+      response.status === 429 ? 429 : 502,
+    );
+  }
+  return (await response.json()) as unknown;
+}
+
+/** Whether an already-stored token scope grants sending (status route flag). */
+export function googleTokenCanSend(scope: string): boolean {
+  return scope.split(/[\s,]+/).includes(GMAIL_SEND_SCOPE);
+}
+
+/* --------------------------------------------------------------- send (7d) */
+
+/** RFC 2822 address atom — quote display names that break the atom. */
+function formatAddress(address: MailAddress): string {
+  const email = address.email.trim();
+  const name = address.name?.trim() ?? "";
+  if (!name) return email;
+  return /[",;<>\\]/.test(name) ? `"${name.replace(/"/g, '\\"')}" <${email}>` : `${name} <${email}>`;
+}
+
+/** base64 Content-Transfer-Encoding, folded at 76 chars (RFC 2045). */
+function foldBase64(value: string): string {
+  return value.replace(/(.{76})/g, "$1\r\n ");
+}
+
+type ThreadingSource = {
+  messageId: string | null;
+  references: string | null;
+  subject: string | null;
+};
+
+/**
+ * Fetch the original's RFC threading headers (Gmail's internal id is NOT the
+ * RFC Message-ID). Cheap metadata get() at send time — one call, no bodies.
+ */
+async function threadingSource(messageId: string): Promise<ThreadingSource | null> {
+  if (!/^[A-Za-z0-9_-]+$/.test(messageId)) {
+    throw new MailError("Malformed Gmail message id.", 400);
+  }
+  const params = new URLSearchParams({ format: "metadata" });
+  ["Message-ID", "References", "Subject", "From", "To"].forEach((name) =>
+    params.append("metadataHeaders", name),
+  );
+  try {
+    const message = (await gmailApi(`/messages/${messageId}`, params)) as GmailMessage;
+    return {
+      messageId: header(message, "Message-ID"),
+      references: header(message, "References"),
+      subject: header(message, "Subject"),
+    };
+  } catch (error) {
+    // A vanished original must not block a fresh reply — send unthreaded.
+    console.error(`[mail/google] reply threading fetch failed:`, error instanceof Error ? error.message : error);
+    return null;
+  }
+}
+
+/** Minimal RFC 822 message: To/Cc/Bcc/Subject/References + base64 plain body. */
+function buildRfc822(request: MailSendRequest, threading: ThreadingSource | null): string {
+  const lines: string[] = [];
+  lines.push(`To: ${request.to.map(formatAddress).join(", ")}`);
+  if (request.cc.length) lines.push(`Cc: ${request.cc.map(formatAddress).join(", ")}`);
+  if (request.bcc.length) lines.push(`Bcc: ${request.bcc.map(formatAddress).join(", ")}`);
+
+  let subject = request.subject.trim();
+  if (threading && subject && !/^re:/i.test(subject)) subject = `Re: ${subject}`;
+  if (subject) lines.push(`Subject: ${subject.replace(/\r?\n/g, " ")}`);
+  else if (threading?.subject) lines.push(`Subject: Re: ${threading.subject.replace(/\r?\n/g, " ")}`);
+
+  if (threading?.messageId) {
+    lines.push(`In-Reply-To: ${threading.messageId}`);
+    const references = threading.references ? `${threading.references} ${threading.messageId}` : threading.messageId;
+    lines.push(`References: ${references}`);
+  }
+
+  lines.push("MIME-Version: 1.0");
+  lines.push('Content-Type: text/plain; charset="UTF-8"');
+  lines.push("Content-Transfer-Encoding: base64");
+  lines.push("");
+  lines.push(foldBase64(Buffer.from(request.bodyText, "utf8").toString("base64")));
+  return lines.join("\r\n");
+}
 
 function header(message: GmailMessage, name: string): string | null {
   const value = message.payload?.headers?.find(
@@ -478,5 +601,24 @@ export const googleAdapter: MailProvider = {
       mimeType: meta.mimeType,
       bytes: Buffer.from(attachment.data ?? "", "base64url"),
     };
+  },
+
+  async send(request: MailSendRequest): Promise<MailSentResult> {
+    const record = await getAccessToken();
+    sendableRecordOrThrow(record);
+
+    // Replies: pull the original's RFC headers so threads stay coherent.
+    const threading = request.replyTo
+      ? await threadingSource(request.replyTo.messageId)
+      : null;
+
+    // Docs: POST users/messages/send {raw, threadId} — Gmail consumes the
+    // Bcc header (delivers to Bcc recipients without exposing their address).
+    const sent = (await gmailPost("/messages/send", {
+      raw: Buffer.from(buildRfc822(request, threading), "utf8").toString("base64url"),
+      ...(request.replyTo?.threadId ? { threadId: request.replyTo.threadId } : {}),
+    })) as { id?: string };
+
+    return { provider: "google", id: sent.id ?? null };
   },
 };
