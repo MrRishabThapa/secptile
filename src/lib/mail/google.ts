@@ -27,6 +27,7 @@
  */
 import "server-only";
 import { mailEncryptionKeyValid } from "./crypto";
+import { unescapeText } from "./text";
 import {
   readMailToken,
   writeMailToken,
@@ -352,7 +353,7 @@ function toSummary(message: GmailMessage, accountId: MailProviderId, accountEmai
     to: parseAddressList(header(message, "To")),
     cc: parseAddressList(header(message, "Cc")),
     subject: header(message, "Subject") ?? "(no subject)",
-    snippet: message.snippet ?? "",
+    snippet: unescapeText(message.snippet ?? ""),
     date,
     unread: message.labelIds?.includes("UNREAD") ?? false,
     hasAttachments: attachments.attachments.length > 0,
