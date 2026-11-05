@@ -36,6 +36,14 @@ export interface MailProvider {
   /** Conversation view — Gmail only (Zoho has no thread resource). */
   getThread?(id: string): Promise<MailThread>;
 
-  /** Attachment bytes by opaque provider IDs; metadata comes from getMessage. */
-  getAttachment(messageId: string, attachmentId: string): Promise<MailAttachmentBytes>;
+  /**
+   * Attachment bytes. `meta` carries the filename/mime from the message's
+   * attachment metadata — the route validates the attachmentId belongs to
+   * that message before calling, so adapters don't re-fetch metadata.
+   */
+  getAttachment(
+    messageId: string,
+    attachmentId: string,
+    meta: { filename: string; mimeType: string },
+  ): Promise<MailAttachmentBytes>;
 }
