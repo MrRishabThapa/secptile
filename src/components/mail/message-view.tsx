@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import DOMPurify from "dompurify";
-import { ExternalLink, FileDown, ImageOff, Images, X } from "lucide-react";
+import { ExternalLink, FileDown, ImageOff, Images, Mail, X } from "lucide-react";
 
 /**
  * Reading pane (Phase 7b). Renders a message or, for Gmail rows with a
@@ -41,11 +41,17 @@ export function MessageView({
   id,
   threadId,
   onClose,
+  /** 7d: reply gate — visible only when this provider's token grants sending. */
+  canSend = false,
+  /** 7d: opened a compose drawer prefilled from the newest message in view. */
+  onReply,
 }: {
   provider: "google" | "zoho";
   id: string;
   threadId: string | null;
   onClose: () => void;
+  canSend?: boolean;
+  onReply?: (detail: Detail) => void;
 }) {
   const [subject, setSubject] = useState("");
   const [messages, setMessages] = useState<Detail[] | null>(null);
@@ -110,6 +116,17 @@ export function MessageView({
         <h2 className="min-w-0 flex-1 text-lg font-semibold leading-tight tracking-tight text-zinc-900 dark:text-zinc-50">
           {subject || (messages === null && !error ? "Loading…" : "(no subject)")}
         </h2>
+        {canSend && onReply && messages && messages.length > 0 && (
+          <button
+            type="button"
+            onClick={() => onReply(messages[messages.length - 1])}
+            aria-label="Reply"
+            className="shrink-0 rounded-full border border-zinc-200 px-3 py-1.5 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
+          >
+            <Mail className="size-4 shrink-0" aria-hidden />
+            Reply
+          </button>
+        )}
         <button
           type="button"
           onClick={onClose}
