@@ -8,12 +8,14 @@ import logo from "@/assets/logo.png";
 /**
  * Shared navigation. Built to grow: add entries here as new surfaces land
  * (assistant, stats, settings…). Chat (voice journaling) opens at the root;
- * the blog/LinkedIn flow lives on Today's Tea; comment review on Feedback.
+ * the blog/LinkedIn flow lives on Today's Tea; comment review on Feedback;
+ * the read-only unified inbox on Mail.
  */
 const LINKS = [
   { href: "/", label: "Chat" },
   { href: "/tea", label: "Today's Tea" },
   { href: "/tracker", label: "Tracker" },
+  { href: "/mail", label: "Mail" },
   { href: "/feedback", label: "Feedback" },
 ];
 

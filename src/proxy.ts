@@ -38,22 +38,26 @@ const OAUTH_EXEMPT = [
 ];
 
 export function proxy(request: NextRequest): NextResponse {
-  const pathname = request.nextUrl.pathname;
-  if (OAUTH_EXEMPT.some((pattern) => pattern.test(pathname))) {
-    return NextResponse.next();
-  }
-
+  // Rule 1 — host. Applies to EVERYTHING (OAuth routes included): the
+  // provider only ever redirects to our exact registered URL, so a real
+  // callback always carries an allowlisted Host.
   const host = request.headers.get("host");
   if (!host || !ALLOWED_HOSTS.has(host.toLowerCase())) {
     return NextResponse.json({ error: "Unrecognized host." }, { status: 403 });
   }
 
-  const fetchSite = request.headers.get("sec-fetch-site");
-  if (fetchSite && fetchSite.toLowerCase() !== "same-origin") {
-    return NextResponse.json(
-      { error: "Cross-site API calls are not allowed." },
-      { status: 403 },
-    );
+  // Rule 2 — same-origin. NOT applied to OAuth login/callback paths: the
+  // provider delivers the user back cross-site. Those routes are guarded by
+  // the state cookie they verify themselves.
+  const pathname = request.nextUrl.pathname;
+  if (!OAUTH_EXEMPT.some((pattern) => pattern.test(pathname))) {
+    const fetchSite = request.headers.get("sec-fetch-site");
+    if (fetchSite && fetchSite.toLowerCase() !== "same-origin") {
+      return NextResponse.json(
+        { error: "Cross-site API calls are not allowed." },
+        { status: 403 },
+      );
+    }
   }
 
   return NextResponse.next();

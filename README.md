@@ -16,6 +16,52 @@ A personal voice journal that turns "here's how my day went" into a polished blo
 `GET /api/auth/linkedin/callback`, and posting is `POST /api/linkedin/post`.
 The registered redirect URL must match the callback exactly.
 
+## E-mail (Phase 7a/7b) — read-only unified inbox
+
+Gmail and Zoho Mail connect via their official OAuth APIs (scopes are
+**read-only**: `gmail.readonly` / `ZohoMail.accounts.READ,ZohoMail.folders.READ,ZohoMail.messages.READ`)
+and merge into one inbox (`/mail`): account switcher (All / Gmail / Zoho),
+search, unread badges, pagination, and a message view with sanitized HTML,
+attachment downloads streamed through the server, and Gmail thread view.
+Nothing is sent, modified, or deleted in this phase.
+
+Tokens live at `~/.secptile/mail.json` (mode 0600, outside the repo) with
+access/refresh tokens **AES-256-GCM-encrypted at rest** (key:
+`MAIL_ENCRYPTION_KEY`). Bad/expired refreshes fail closed — the UI shows a
+**Reconnect** pill and you re-run the provider's connect flow. Rotating
+`MAIL_ENCRYPTION_KEY` logs both accounts out (honest fail-closed, no data
+damage — just reconnect).
+
+### Google (Gmail) setup — `console.cloud.google.com`
+1. Enable **Gmail API** (APIs & Services → Library) on the project.
+2. OAuth consent screen: External → **publish to production** (Testing
+   status expires refresh tokens every 7 days; production shows a one-time
+   "unverified app" screen you accept — personal, single-user app).
+3. Credentials → Create client → **Web application**, authorized redirect:
+   `http://localhost:3100/api/mail/google/callback`.
+4. `.env.local`: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
+   (`GOOGLE_REDIRECT_URI` only to override the default above).
+
+### Zoho Mail setup — `api-console.zoho.com`
+1. GET STARTED → **Server-based Application** → Create (name, homepage,
+   redirect): `http://localhost:3100/api/mail/zoho/callback`.
+2. Data center (must match where your Zoho account lives — check any
+   `accounts.zoho.<domain>` login URL): set `ZOHO_ACCOUNTS_DOMAIN` and
+   `ZOHO_MAIL_API_DOMAIN` to the same region (US → `accounts.zoho.com` /
+   `mail.zoho.com`, IN → `.in`, EU → `.eu`, … — see `.env.example` table).
+   The callback cross-checks Zoho's `accounts-server` echo and refuses a
+   cross-data-center token early.
+3. `.env.local`: `ZOHO_CLIENT_ID`, `ZOHO_CLIENT_SECRET`; optional
+   `ZOHO_MAILBOX` to pin a send-as identity. (`ZOHO_REDIRECT_URI` only to
+   override the default above.)
+
+Shared: `MAIL_ENCRYPTION_KEY` — generate once with `openssl rand -hex 32`.
+
+Mail API routes are served on port **3100** (`PORT`-driven, see
+`SECPTILE_PORT`/`PORT` in `.env.example`) and are guarded by the API proxy
+(`src/proxy.ts`): localhost-only hosts, same-origin browser calls, OAuth
+login/callback routes exempt (they carry their own CSRF state cookie).
+
 ## Tech stack
 
 - **Next.js 16** (App Router, Turbopack) + React 19 + TypeScript (strict)
