@@ -71,6 +71,29 @@ export type MailListQuery = {
 };
 
 /**
+ * One outgoing mail — plain-text body in v1. Sent only on the owner's
+ * explicit click (hard rule 1); adapters turn this into provider requests.
+ */
+export type MailSendRequest = {
+  to: MailAddress[];
+  cc: MailAddress[];
+  bcc: MailAddress[];
+  subject: string;
+  bodyText: string;
+  /**
+   * Present for replies: the original message the adapter thread-frames the
+   * send against (Gmail threadId + RFC headers, Zoho reply action).
+   */
+  replyTo?: { messageId: string; threadId: string | null } | null;
+};
+
+/** Adapter result of a successful send; `id` is provider-shaped or null. */
+export type MailSentResult = {
+  provider: MailProviderId;
+  id: string | null;
+};
+
+/**
  * Mail errors carry a sanitized message (no token material ever) and, when
  * true, `needsReconnect` — the UI shows a Reconnect pill instead of a stack.
  */
