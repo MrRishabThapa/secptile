@@ -1,27 +1,43 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { Clock } from "lucide-react";
 import { formatUtcOffset, formatWallClock } from "./format-time";
 
 /**
- * Local wall clock — the time in the user's current area (the browser's
- * timezone, from Intl). Seconds tick once per second. SSR-safe: the display
- * stays at a placeholder until mounted (same pattern as the navbar's
- * pathname), so server and client HTML never disagree.
+ * The "clock store": one shared 1 Hz source of truth for any wall-clock
+ * readers on the page. useSyncExternalStore subscribes to the interval and
+ * pulls a stable snapshot that changes at most once per second — no
+ * setState-in-effect cascades, and the server snapshot is null so SSR HTML
+ * shows a placeholder and hydration never disagrees with the client.
  */
+
+/** Cache keyed by epoch second, so repeated getSnapshot calls are stable. */
+let cachedSnapshot: { second: number; date: Date } | null = null;
+
+function getClockSnapshot(): Date {
+  const second = Math.floor(Date.now() / 1000);
+  if (cachedSnapshot === null || cachedSnapshot.second !== second) {
+    cachedSnapshot = { second, date: new Date() };
+  }
+  return cachedSnapshot.date;
+}
+
+function getClockServerSnapshot(): Date | null {
+  return null;
+}
+
+function subscribeToClock(onStoreChange: () => void): () => void {
+  const interval = window.setInterval(onStoreChange, 500);
+  return () => window.clearInterval(interval);
+}
+
 export function LocalClock() {
-  const [mounted, setMounted] = useState(false);
-  const [now, setNow] = useState(() => new Date());
-
-  useEffect(() => {
-    setMounted(true);
-    setNow(new Date());
-    const id = window.setInterval(() => setNow(new Date()), 1000);
-    return () => window.clearInterval(id);
-  }, []);
-
-  const display = mounted ? formatWallClock(now) : "--:--:--";
+  const now = useSyncExternalStore<Date | null>(
+    subscribeToClock,
+    getClockSnapshot,
+    getClockServerSnapshot,
+  );
 
   return (
     <section
@@ -38,10 +54,10 @@ export function LocalClock() {
         role="timer"
         aria-live="off"
       >
-        {display}
+        {now ? formatWallClock(now) : "--:--:--"}
       </p>
 
-      {mounted && (
+      {now !== null ? (
         <>
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
             {now.toLocaleDateString(undefined, {
