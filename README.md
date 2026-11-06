@@ -17,17 +17,17 @@ LinkedIn routes (source of truth — do not rename): OAuth starts at `GET /api/a
 
 ## Versions by branch
 
-| Branch | Scope | Status |
-|--------|-------|--------|
-| `phase-8-polish` | Streaming responses, history, error states, accessibility | planned |
-| `phase-7-email` | Gmail + Zoho OAuth, read-only unified inbox, message view, attachments, draft/reply/send with AI drafting | complete |
-| `phase-6-desktop-assistant` | Local wake-word daemon ("hey secptile"), voice commands, systemd user services | complete |
-| `phase-5-linkedin` | OAuth flow, token storage and refresh, LinkedIn Posts API publishing with optional cover photo | complete |
-| `phase-4-blog-publishing` | Approved posts saved to local SQLite blog DB, mandatory cover photo upload | complete |
-| `phase-3-draft-editor` | Editable draft, LinkedIn-style preview, Approve / Edit / Regenerate with note | complete |
-| `phase-2-voice-input` | Mic button, recording, local Whisper transcription, editable transcript before sending | complete |
-| `phase-1-text-loop` | Textbox to API route to OpenCode to zod-validated response to clarifying-questions UI to draft view | complete |
-| `phase-0-scaffold` | Next.js + TypeScript + Tailwind setup, folder structure, env example, gitignore, README | complete |
+| Branch                      | Scope                                                                                                     | Status   |
+| --------------------------- | --------------------------------------------------------------------------------------------------------- | -------- |
+| `phase-8-polish`            | Streaming responses, history, error states, accessibility                                                 | planned  |
+| `phase-7-email`             | Gmail + Zoho OAuth, read-only unified inbox, message view, attachments, draft/reply/send with AI drafting | complete |
+| `phase-6-desktop-assistant` | Local wake-word daemon ("hey secptile"), voice commands, systemd user services                            | complete |
+| `phase-5-linkedin`          | OAuth flow, token storage and refresh, LinkedIn Posts API publishing with optional cover photo            | complete |
+| `phase-4-blog-publishing`   | Approved posts saved to local SQLite blog DB, mandatory cover photo upload                                | complete |
+| `phase-3-draft-editor`      | Editable draft, LinkedIn-style preview, Approve / Edit / Regenerate with note                             | complete |
+| `phase-2-voice-input`       | Mic button, recording, local Whisper transcription, editable transcript before sending                    | complete |
+| `phase-1-text-loop`         | Textbox to API route to OpenCode to zod-validated response to clarifying-questions UI to draft view       | complete |
+| `phase-0-scaffold`          | Next.js + TypeScript + Tailwind setup, folder structure, env example, gitignore, README                   | complete |
 
 `main` holds reviewed milestones. One feature branch per phase; one file per commit.
 
@@ -178,6 +178,7 @@ Known limitations: deterministic energy VAD may unwrap a long pause early (set `
 - Browser automation, scraping, or unofficial APIs are never used for LinkedIn; only the official Posts API via server-side OAuth.
 
 See [AGENTS.md](./AGENTS.md) for the project rules, phase plan, and conventions.
+22
 
 ## Repo conventions
 
