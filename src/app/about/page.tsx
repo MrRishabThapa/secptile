@@ -8,6 +8,7 @@ import {
   BatteryMedium,
   CircuitBoard,
   Cpu,
+  HardDrive,
   Laptop,
   MemoryStick,
   RefreshCw,
@@ -19,6 +20,8 @@ import { SYSTEM_STATS_SCHEMA, type SystemStats } from "@/lib/system-stats-schema
 const POLL_MS = 1500;
 
 function formatBytes(bytes: number): string {
+  const tib = bytes / 1024 ** 4;
+  if (tib >= 1) return `${tib.toFixed(1)} TiB`;
   const gib = bytes / 1024 ** 3;
   if (gib >= 1) return `${gib.toFixed(1)} GiB`;
   return `${Math.round(bytes / 1024 / 1024)} MiB`;
@@ -92,8 +95,8 @@ function SpecRow({ term, value }: { term: string; value: string }) {
 /**
  * "About" — a live look at the machine Secptile runs on. The browser has no
  * route to the host, so everything comes from /api/system (server reads
- * /proc, /sys and ps). Polling keeps CPU/RAM/battery in real time; a stale
- * fetch never blanks the page, previous readings stay until the next one.
+ * /proc, /sys and ps). Polling keeps CPU/RAM/battery/storage in real time; a
+ * stale fetch never blanks the page, previous readings stay until the next one.
  */
 export default function AboutPage() {
   const [stats, setStats] = useState<SystemStats | null>(null);
@@ -334,6 +337,34 @@ export default function AboutPage() {
             </>
           ) : (
             <p className="text-sm text-zinc-500 dark:text-zinc-400">No battery detected — desktop rig.</p>
+          )}
+        </StatCard>
+
+        <StatCard icon={HardDrive} label="Storage">
+          {stats.storage.disks.map((disk) => {
+            const pct = disk.totalBytes > 0 ? (disk.usedBytes * 100) / disk.totalBytes : 0;
+            return (
+              <div key={disk.name} className="flex flex-col gap-1">
+                <div className="flex items-baseline justify-between gap-2 text-sm">
+                  <span
+                    className="truncate font-mono font-medium text-zinc-800 dark:text-zinc-200"
+                    title={`${disk.name} · ${disk.mount}`}
+                  >
+                    {disk.name}
+                    <span className="ml-1.5 text-zinc-400 dark:text-zinc-500">{disk.mount}</span>
+                  </span>
+                  <span className="shrink-0 text-zinc-500 dark:text-zinc-400">
+                    <span className="font-mono tabular-nums text-zinc-800 dark:text-zinc-200">{formatBytes(disk.usedBytes)}</span>
+                    {" / "}
+                    {formatBytes(disk.totalBytes)}
+                  </span>
+                </div>
+                <Meter pct={pct} />
+              </div>
+            );
+          })}
+          {stats.storage.disks.length === 0 && (
+            <p className="text-xs text-zinc-400 dark:text-zinc-500">No mounted volumes found.</p>
           )}
         </StatCard>
       </div>
