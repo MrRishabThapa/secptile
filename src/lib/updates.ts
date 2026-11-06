@@ -15,8 +15,8 @@ const execFileAsync = promisify(execFile);
  * payload against them before sending.
  */
 
-export { PENDING_UPDATES_SCHEMA };
-export type { PendingUpdates };
+export { PENDING_UPDATES_SCHEMA, UPDATE_THREAD_SCHEMA };
+export type { PendingUpdates, UpdateThread };
 
 class UpdateNotFound extends Error {
   constructor(name: string) {
