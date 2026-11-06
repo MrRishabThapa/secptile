@@ -1,0 +1,43 @@
+name: Feature request
+description: Suggest an idea or improvement for Secptile
+labels: [enhancement]
+body:
+  - type: checkboxes
+    attributes:
+      label: Before you start
+      options:
+        - label: I have searched the [existing issues](https://github.com/MrRishabThapa/secptile/issues?q=) for a duplicate
+          required: true
+  - type: textarea
+    attributes:
+      label: The problem
+      description: Describe what you were trying to do and what got in the way. "It would be nice" is fine too — context matters more than polish.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: The solution
+      description: How would you solve it? Screenshots or sketches welcome (attach images of UIs, not of text/logs).
+    validations:
+      required: true
+  - type: dropdown
+    attributes:
+      label: Which surface does this touch?
+      options:
+        - Chat (voice journal)
+        - Today's Tea (draft editor / publishing)
+        - Tracker (post analytics)
+        - Mail (inbox / AI drafts)
+        - Feedback (comment review)
+        - Desktop voice daemon
+        - Build / CI / developer experience
+        - Documentation
+    validations:
+      required: true
+  - type: checkboxes
+    attributes:
+      label: Secptile's hard rule
+      description: By design, nothing is ever published without an explicit approving click in the UI. Feature requests asking to remove this are filed but declined.
+      options:
+        - label: My request keeps the explicit-approval rule intact (no auto-posting)
+          required: true

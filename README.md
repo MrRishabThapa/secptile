@@ -4,6 +4,14 @@
 
 A personal voice journal that turns "here's how my day went" into a polished blog post — drafted by [OpenCode](https://opencode.ai) running on the same machine, reviewed and approved by you, then saved and shared only after explicit approval.
 
+## Demo
+
+<!-- Drop a ~10s GIF or screenshot here showing the flow: speaking a day in Chat →
+     clarifying questions → the finished draft on Today's Tea. Save it as
+     docs/demo.gif (or update the path below) — it can't be committed as video. -->
+
+![Secptile demo — recording your day, the clarifying questions, and the drafted blog post](docs/demo.gif)
+
 ## How it works
 
 1. Speak a summary of your day (voice or text) in Chat with Secptile.
@@ -178,6 +186,22 @@ Known limitations: deterministic energy VAD may unwrap a long pause early (set `
 - Browser automation, scraping, or unofficial APIs are never used for LinkedIn; only the official Posts API via server-side OAuth.
 
 See [AGENTS.md](./AGENTS.md) for the project rules, phase plan, and conventions.
+
+## Contributing
+
+This is a personal project, but help is welcome — especially if you want to get
+your first steps in open source:
+
+1. Read [the setup guide](./docs/getting-started.md) — no prior knowledge assumed.
+2. Pick an issue labeled `good first issue`, or see
+   [a fully documented example](./docs/good-first-issue.md).
+3. Work on a feature branch, not `main` (conventions below).
+4. Open a PR, check its CI (`pnpm build` runs there), and link any issue it fixes.
+
+First time contributing to Open Source? Start with these resources:
+
+- https://github.com/firstcontributions/first-contributions
+- https://opensource.guide/how-to-contribute/
 
 ## Repo conventions
 

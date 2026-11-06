@@ -1,0 +1,53 @@
+name: Bug report
+description: Something is broken or behaves unexpectedly
+labels: [bug]
+body:
+  - type: checkboxes
+    attributes:
+      label: Before you start
+      description: This helps us get to your bug faster.
+      options:
+        - label: I have searched the [existing issues](https://github.com/MrRishabThapa/secptile/issues?q=) for a duplicate
+          required: true
+        - label: I have followed the [setup guide](https://github.com/MrRishabThapa/secptile/blob/main/docs/getting-started.md) and completed the install/configure steps
+          required: true
+  - type: textarea
+    attributes:
+      label: Environment
+      description: Copy the output of these commands into the box below — needed so we can reproduce your exact setup.
+      placeholder: |
+        node --version
+        pnpm --version
+        opencode --version
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: What did you do?
+      description: Step-by-step, numbered, from a fresh terminal. Include the exact commands or clicks.
+      placeholder: |
+        1. pnpm dev
+        2. Opened http://localhost:3100
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: What did you expect to happen?
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: What actually happened?
+      description: Include any terminal output or browser console errors. Paste logs directly — never screenshots of text.
+      render: shell
+    validations:
+      required: true
+  - type: checkboxes
+    attributes:
+      label: Privacy checklist
+      description: Secptile handles personal data. Never post secrets or token files.
+      options:
+        - label: This report contains no secrets, tokens, or contents copied from .env.local
+          required: true
