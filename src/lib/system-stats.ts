@@ -174,6 +174,52 @@ async function readBattery() {
   };
 }
 
+/** Filesystem types backed by a real disk; network/overlay/loop mounts excluded. */
+const KINDS = new Set([
+  "ext4", "ext3", "ext2", "btrfs", "xfs", "f2fs", "jfs",
+  "ntfs3", "ntfs", "vfat", "exfat", "zfs", "bcachefs",
+]);
+
+/**
+ * One entry per physical volume that is actually mounted. Btrfs subvolume
+ * mounts repeat the same device (/home, @/…), so the first mount wins and the
+ * duplicates are dropped; the tiny ESP under /boot|/efi is skipped as noise.
+ */
+async function readStorage() {
+  let raw = "";
+  try {
+    raw = await fs.readFile("/proc/self/mounts", "utf8");
+  } catch (error) {
+    console.warn("[system-stats] /proc/self/mounts unavailable:", error);
+    return { disks: [] };
+  }
+  const seen = new Set<string>();
+  const disks: { name: string; mount: string; totalBytes: number; usedBytes: number }[] = [];
+  for (const line of raw.split("\n")) {
+    const [device, mount, kind] = line.trim().split(/\s+/);
+    if (!device?.startsWith("/dev/") || !KINDS.has(kind ?? "")) continue;
+    if (/^\/(boot|efi)/.test(mount ?? "")) continue;
+    const name = device.replace(/^\/dev\//, "");
+    if (seen.has(name)) continue;
+    seen.add(name);
+    try {
+      const st = await fs.statfs(mount);
+      const totalBytes = Number(st.blocks) * st.bsize;
+      if (totalBytes <= 0) continue;
+      disks.push({
+        name,
+        mount,
+        totalBytes,
+        usedBytes: Math.max(0, totalBytes - Number(st.bfree) * st.bsize),
+      });
+    } catch {
+      // Dismounted or unreadable mid-scan — leave this volume out.
+    }
+  }
+  disks.sort((a, b) => b.totalBytes - a.totalBytes);
+  return { disks };
+}
+
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
@@ -223,7 +269,7 @@ async function readGpu() {
 
 /** One snapshot of everything the About page renders. */
 export async function readSystemStats(): Promise<SystemStats> {
-  const [cpu, gpu, memRaw, uptimeRaw, battery, osRelease, device, hostname] =
+  const [cpu, gpu, memRaw, uptimeRaw, battery, osRelease, device, hostname, storage] =
     await Promise.all([
       readCpu(),
       readGpu(),
@@ -236,6 +282,7 @@ export async function readSystemStats(): Promise<SystemStats> {
         .then((v) => v.trim())
         .catch(() => null),
       Promise.resolve(os.hostname()),
+      readStorage(),
     ]);
 
   const mem = parseMemInfo(memRaw);
@@ -261,5 +308,6 @@ export async function readSystemStats(): Promise<SystemStats> {
       topApps,
     },
     battery,
+    storage,
   };
 }
