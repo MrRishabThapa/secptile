@@ -49,6 +49,17 @@ export const SYSTEM_STATS_SCHEMA = z.object({
     healthPct: z.number().min(0).max(100).nullable(),
     cycleCount: z.number().int().nonnegative().nullable(),
   }),
+  storage: z.object({
+    disks: z.array(
+      z.object({
+        /** Kernel device name without /dev/ — e.g. "nvme0n1p2". */
+        name: z.string(),
+        mount: z.string(),
+        totalBytes: z.number().nonnegative(),
+        usedBytes: z.number().nonnegative(),
+      }),
+    ),
+  }),
 });
 
 export type SystemStats = z.infer<typeof SYSTEM_STATS_SCHEMA>;
