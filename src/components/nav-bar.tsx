@@ -9,7 +9,7 @@ import logo from "@/assets/logo.png";
  * Shared navigation. Built to grow: add entries here as new surfaces land
  * (assistant, stats, settings…). Chat (voice journaling) opens at the root;
  * the blog/LinkedIn flow lives on Today's Tea; comment review on Feedback;
- * the read-only unified inbox on Mail.
+ * the read-only unified inbox on Mail; pending system updates on Updates.
  */
 const LINKS = [
   { href: "/", label: "Chat" },
@@ -18,6 +18,8 @@ const LINKS = [
   { href: "/tracker", label: "Tracker" },
   { href: "/mail", label: "Mail" },
   { href: "/feedback", label: "Feedback" },
+  { href: "/updates", label: "Updates" },
+  { href: "/about", label: "About" },
 ];
 
 export function NavBar() {
