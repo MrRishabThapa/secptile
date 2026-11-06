@@ -4,6 +4,14 @@
 
 A personal voice journal that turns "here's how my day went" into a polished blog post — drafted by [OpenCode](https://opencode.ai) running on the same machine, reviewed and approved by you, then saved and shared only after explicit approval.
 
+## Demo
+
+<!-- Drop a ~10s GIF or screenshot here showing the flow: speaking a day in Chat →
+     clarifying questions → the finished draft on Today's Tea. Save it as
+     docs/demo.gif (or update the path below) — it can't be committed as video. -->
+
+![Secptile demo — recording your day, the clarifying questions, and the drafted blog post](docs/demo.gif)
+
 ## How it works
 
 1. Speak a summary of your day (voice or text) in Chat with Secptile.
