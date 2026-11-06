@@ -18,6 +18,7 @@ const LINKS = [
   { href: "/tracker", label: "Tracker" },
   { href: "/mail", label: "Mail" },
   { href: "/feedback", label: "Feedback" },
+  { href: "/about", label: "About" },
 ];
 
 export function NavBar() {
