@@ -1,0 +1,42 @@
+# CI for Secptile — immediate feedback on every pull request.
+#
+# The build is the blocking gate: `next build` (with typescript + eslint
+# built in) type-checks the whole tree and prerenders all routes. It was
+# verified to pass with NO .env.local present, so it works on a clean runner.
+#
+# `pnpm lint` runs non-blocking (continue-on-error) because the codebase
+# currently has pre-existing lint errors that need cleaning up first.
+# Once `pnpm lint` exits clean, remove that line to make it a required check.
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    name: Build & type-check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build (includes type-checking)
+        run: pnpm build
+
+      - name: Lint (non-blocking until pre-existing errors are fixed)
+        run: pnpm lint
+        continue-on-error: true
