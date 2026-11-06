@@ -14,6 +14,7 @@ import logo from "@/assets/logo.png";
 const LINKS = [
   { href: "/", label: "Chat" },
   { href: "/tea", label: "Today's Tea" },
+  { href: "/clock", label: "Clock" },
   { href: "/tracker", label: "Tracker" },
   { href: "/mail", label: "Mail" },
   { href: "/feedback", label: "Feedback" },
