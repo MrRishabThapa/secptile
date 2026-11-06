@@ -187,6 +187,22 @@ Known limitations: deterministic energy VAD may unwrap a long pause early (set `
 
 See [AGENTS.md](./AGENTS.md) for the project rules, phase plan, and conventions.
 
+## Contributing
+
+This is a personal project, but help is welcome — especially if you want to get
+your first steps in open source:
+
+1. Read [the setup guide](./docs/getting-started.md) — no prior knowledge assumed.
+2. Pick an issue labeled `good first issue`, or see
+   [a fully documented example](./docs/good-first-issue.md).
+3. Work on a feature branch, not `main` (conventions below).
+4. Open a PR, check its CI (`pnpm build` runs there), and link any issue it fixes.
+
+First time contributing to Open Source? Start with these resources:
+
+- https://github.com/firstcontributions/first-contributions
+- https://opensource.guide/how-to-contribute/
+
 ## Repo conventions
 
 - One file per commit — every commit contains exactly one changed file.
