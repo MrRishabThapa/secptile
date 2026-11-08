@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { OpenCodeError, runJournalPhase, type RunProgress } from "@/lib/opencode";
-import { journalBodySchema } from "@/lib/journal-request";
-import { upsertDraftSession } from "@/lib/history";
+import { OpenCodeError, runJournalPhase, type RunProgress } from "@/lib/journal/opencode";
+import { journalBodySchema } from "@/lib/journal/journal-request";
+import { upsertDraftSession } from "@/lib/journal/history";
 
 /**
  * Streaming variant of POST /api/journal: newline-delimited JSON —
