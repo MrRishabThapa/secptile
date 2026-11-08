@@ -1,6 +1,6 @@
 "use client";
 
-import type { RecorderState } from "./use-voice-recorder";
+import type { RecorderState } from "../hooks/use-voice-recorder";
 
 type Props = {
   state: RecorderState;
