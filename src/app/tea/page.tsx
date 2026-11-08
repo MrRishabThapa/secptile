@@ -11,7 +11,7 @@ import {
   readLinkedInResume,
   saveLinkedInResume,
 } from "@/features/linkedin/components/linkedin-share";
-import { callJournalStream, type Draft } from "@/lib/journal-client";
+import { callJournalStream, type Draft } from "@/lib/journal/journal-client";
 
 type PublishResult = {
   id: string;
