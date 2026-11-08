@@ -13,7 +13,7 @@ import {
   LINKEDIN_TEXT_LIMIT,
   stripTrailingHashtags,
   tagsToHashtags,
-} from "@/lib/linkedin-text";
+} from "@/lib/linkedin/linkedin-text";
 
 type Props = {
   /** The exact LinkedIn text that will post (already plain, hook-first). */

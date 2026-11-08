@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { BlogError, PHOTO_MIMES, PHOTO_MAX_BYTES, savePhoto } from "@/lib/blog-db";
+import { BlogError, PHOTO_MIMES, PHOTO_MAX_BYTES, savePhoto } from "@/lib/blog/blog-db";
 
 /**
  * Cover-photo upload for today's post. The photo is mandatory before a post

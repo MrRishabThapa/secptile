@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getPhoto, incrementViewsForPhoto } from "@/lib/blog-db";
+import { getPhoto, incrementViewsForPhoto } from "@/lib/blog/blog-db";
 
 type Context = { params: Promise<{ id: string }> };
 

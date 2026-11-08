@@ -1,6 +1,6 @@
 import { NextResponse, connection } from "next/server";
 import { z } from "zod";
-import { OpenCodeError } from "@/lib/opencode";
+import { OpenCodeError } from "@/lib/journal/opencode";
 import { draftMail } from "@/lib/mail/ai-draft";
 
 /**

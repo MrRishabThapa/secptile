@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Hourglass, Minus, Pause, Play, Plus, RotateCcw } from "lucide-react";
-import { formatDuration } from "./format-time";
+import { formatDuration } from "../utils/format-time";
 
 const MIN_MINUTES = 1;
 const MAX_MINUTES = 180;

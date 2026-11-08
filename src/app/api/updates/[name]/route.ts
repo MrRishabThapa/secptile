@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { UPDATE_THREAD_SCHEMA, readUpdateThread } from "@/lib/updates";
+import { UPDATE_THREAD_SCHEMA, readUpdateThread } from "@/lib/system/updates";
 
 export const dynamic = "force-dynamic"; // Reads live package state — never cache.
 

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { PENDING_UPDATES_SCHEMA, readPendingUpdates } from "@/lib/updates";
+import { PENDING_UPDATES_SCHEMA, readPendingUpdates } from "@/lib/system/updates";
 
 export const dynamic = "force-dynamic"; // Live pending list — never cache.
 

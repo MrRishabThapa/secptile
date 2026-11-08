@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { Draft } from "@/lib/schema";
+import type { Draft } from "@/lib/journal/schema";
 import {
   LINKEDIN_TEXT_LIMIT,
   withAppendedHashtags,
-} from "@/lib/linkedin-text";
+} from "@/lib/linkedin/linkedin-text";
 
 type Status = { configured: boolean; connected: boolean; expiresAt: string | null };
 type Resume = { sessionId: string | null; draft: Draft; approved: boolean; transcript: string };

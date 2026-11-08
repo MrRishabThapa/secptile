@@ -14,7 +14,7 @@ import {
   UPDATE_THREAD_SCHEMA,
   type PendingUpdates,
   type UpdateThread,
-} from "@/lib/updates-schema";
+} from "@/lib/system/updates-schema";
 
 function formatBytes(bytes: number | null): string {
   if (!bytes) return "—";

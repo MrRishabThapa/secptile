@@ -14,7 +14,7 @@ import {
   RefreshCw,
   type LucideIcon,
 } from "lucide-react";
-import { SYSTEM_STATS_SCHEMA, type SystemStats } from "@/lib/system-stats-schema";
+import { SYSTEM_STATS_SCHEMA, type SystemStats } from "@/lib/system/system-stats-schema";
 
 /** Poll cadence: fast enough to feel live, slow enough not to thrash ps/proc. */
 const POLL_MS = 1500;
@@ -338,33 +338,38 @@ export default function AboutPage() {
           ) : (
             <p className="text-sm text-zinc-500 dark:text-zinc-400">No battery detected — desktop rig.</p>
           )}
-        </StatCard>
 
-        <StatCard icon={HardDrive} label="Storage">
-          {stats.storage.disks.map((disk) => {
-            const pct = disk.totalBytes > 0 ? (disk.usedBytes * 100) / disk.totalBytes : 0;
-            return (
-              <div key={disk.name} className="flex flex-col gap-1">
-                <div className="flex items-baseline justify-between gap-2 text-sm">
-                  <span
-                    className="truncate font-mono font-medium text-zinc-800 dark:text-zinc-200"
-                    title={`${disk.name} · ${disk.mount}`}
-                  >
-                    {disk.name}
-                    <span className="ml-1.5 text-zinc-400 dark:text-zinc-500">{disk.mount}</span>
-                  </span>
-                  <span className="shrink-0 text-zinc-500 dark:text-zinc-400">
-                    <span className="font-mono tabular-nums text-zinc-800 dark:text-zinc-200">{formatBytes(disk.usedBytes)}</span>
-                    {" / "}
-                    {formatBytes(disk.totalBytes)}
-                  </span>
-                </div>
-                <Meter pct={pct} />
-              </div>
-            );
-          })}
-          {stats.storage.disks.length === 0 && (
-            <p className="text-xs text-zinc-400 dark:text-zinc-500">No mounted volumes found.</p>
+          {/* SSD storage rides in the battery card's leftover space: the
+              battery readout is short, volumes fill the rest of the cell. */}
+          {stats.storage.disks.length > 0 && (
+            <div className="mt-auto flex flex-col gap-2 border-t border-zinc-100 pt-4 dark:border-zinc-800">
+              <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
+                <HardDrive aria-hidden className="h-3 w-3" />
+                SSD storage
+              </p>
+              {stats.storage.disks.map((disk) => {
+                const pct = disk.totalBytes > 0 ? (disk.usedBytes * 100) / disk.totalBytes : 0;
+                return (
+                  <div key={disk.name} className="flex flex-col gap-1">
+                    <div className="flex items-baseline justify-between gap-2 text-sm">
+                      <span
+                        className="truncate font-mono font-medium text-zinc-800 dark:text-zinc-200"
+                        title={`${disk.name} · ${disk.mount}`}
+                      >
+                        {disk.name}
+                        <span className="ml-1.5 text-zinc-400 dark:text-zinc-500">{disk.mount}</span>
+                      </span>
+                      <span className="shrink-0 text-zinc-500 dark:text-zinc-400">
+                        <span className="font-mono tabular-nums text-zinc-800 dark:text-zinc-200">{formatBytes(disk.usedBytes)}</span>
+                        {" / "}
+                        {formatBytes(disk.totalBytes)}
+                      </span>
+                    </div>
+                    <Meter pct={pct} />
+                  </div>
+                );
+              })}
+            </div>
           )}
         </StatCard>
       </div>

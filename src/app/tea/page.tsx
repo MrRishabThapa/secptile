@@ -3,15 +3,15 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Coffee } from "lucide-react";
-import { DraftEditor } from "@/components/draft-editor";
-import { LinkedInPreview } from "@/components/linkedin-preview";
+import { DraftEditor } from "@/features/tea/components/draft-editor";
+import { LinkedInPreview } from "@/features/linkedin/components/linkedin-preview";
 import {
   LinkedInShare,
   clearLinkedInResume,
   readLinkedInResume,
   saveLinkedInResume,
-} from "@/components/linkedin-share";
-import { callJournalStream, type Draft } from "@/lib/journal-client";
+} from "@/features/linkedin/components/linkedin-share";
+import { callJournalStream, type Draft } from "@/lib/journal/journal-client";
 
 type PublishResult = {
   id: string;

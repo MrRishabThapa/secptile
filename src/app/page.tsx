@@ -2,12 +2,12 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { TranscriptForm } from "@/components/transcript-form";
-import { AssistantBar } from "@/components/assistant-bar";
-import { QuestionsStep } from "@/components/questions-step";
-import { PastDays } from "@/components/past-days";
-import { WAKE_GREETING, detectWakePhrase } from "@/lib/wake";
-import { callJournalStream, type ApiBody, type Draft } from "@/lib/journal-client";
+import { TranscriptForm } from "@/features/voice/components/transcript-form";
+import { AssistantBar } from "@/features/assistant/components/assistant-bar";
+import { QuestionsStep } from "@/features/voice/components/questions-step";
+import { PastDays } from "@/features/days/components/past-days";
+import { WAKE_GREETING, detectWakePhrase } from "@/lib/journal/wake";
+import { callJournalStream, type ApiBody, type Draft } from "@/lib/journal/journal-client";
 
 type Step = "input" | "questions";
 

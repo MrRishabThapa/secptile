@@ -8,7 +8,7 @@
  */
 import "server-only";
 import { z } from "zod";
-import { extractJson, OpenCodeError, runOpenCodeText } from "@/lib/opencode";
+import { extractJson, OpenCodeError, runOpenCodeText } from "@/lib/journal/opencode";
 
 export type MailDraftInput = {
   intent: "reply" | "new";

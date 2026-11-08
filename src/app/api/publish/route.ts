@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { PublishError, publishInputSchema, publishPost } from "@/lib/blog";
+import { PublishError, publishInputSchema, publishPost } from "@/lib/blog/blog";
 
 export async function POST(request: Request) {
   let raw: unknown;

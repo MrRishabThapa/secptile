@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { incrementViews } from "@/lib/blog-db";
+import { incrementViews } from "@/lib/blog/blog-db";
 
 type Context = { params: Promise<{ id: string }> };
 

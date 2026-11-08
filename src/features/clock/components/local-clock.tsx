@@ -2,7 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 import { Clock } from "lucide-react";
-import { formatUtcOffset, formatWallClock } from "./format-time";
+import { formatUtcOffset, formatWallClock } from "../utils/format-time";
 
 /**
  * The "clock store": one shared 1 Hz source of truth for any wall-clock

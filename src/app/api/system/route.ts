@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { SYSTEM_STATS_SCHEMA, readSystemStats } from "@/lib/system-stats";
+import { SYSTEM_STATS_SCHEMA, readSystemStats } from "@/lib/system/system-stats";
 
 export const dynamic = "force-dynamic"; // Live host readings — never cache.
 

@@ -6,7 +6,7 @@
  * module into client code.
  */
 import { getPhoto } from "./blog-db";
-import { stripMarkdown } from "./linkedin-text";
+import { stripMarkdown } from "../linkedin/linkedin-text";
 
 const COVERS_BUCKET = "covers";
 /** Postgres CHECK: excerpt 1..500, tags array_length <= 5. */
