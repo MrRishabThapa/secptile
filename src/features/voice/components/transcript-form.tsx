@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { MicButton } from "./mic-button";
-import { useVoiceRecorder } from "./use-voice-recorder";
+import { useVoiceRecorder } from "../hooks/use-voice-recorder";
 
 export type TranscriptInput = {
   transcript: string;
