@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { deleteDuplicatePosts } from "@/lib/blog-db";
+import { deleteDuplicatePosts } from "@/lib/blog/blog-db";
 
 /** Remove duplicate posts, keeping the newest per journal session. */
 export async function POST() {
