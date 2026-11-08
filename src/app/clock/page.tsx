@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { LocalClock } from "@/components/clock/local-clock";
-import { TimerCard } from "@/components/clock/timer-card";
-import { StopwatchCard } from "@/components/clock/stopwatch-card";
+import { LocalClock } from "@/features/clock/components/local-clock";
+import { TimerCard } from "@/features/clock/components/timer-card";
+import { StopwatchCard } from "@/features/clock/components/stopwatch-card";
 
 type ClockTab = "clock" | "timer" | "stopwatch";
 
