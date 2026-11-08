@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { Draft } from "@/lib/schema";
+import type { Draft } from "@/lib/journal/schema";
 import {
   LINKEDIN_TEXT_LIMIT,
   withAppendedHashtags,
