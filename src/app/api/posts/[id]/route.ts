@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { deletePost, getPost } from "@/lib/blog-db";
+import { deletePost, getPost } from "@/lib/blog/blog-db";
 
 type Context = { params: Promise<{ id: string }> };
 
