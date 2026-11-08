@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { listPosts } from "@/lib/blog-db";
+import { listPosts } from "@/lib/blog/blog-db";
 
 /** Every post published through Secptile (blog + LinkedIn records). */
 export async function GET() {
