@@ -14,7 +14,7 @@ import {
   RefreshCw,
   type LucideIcon,
 } from "lucide-react";
-import { SYSTEM_STATS_SCHEMA, type SystemStats } from "@/lib/system-stats-schema";
+import { SYSTEM_STATS_SCHEMA, type SystemStats } from "@/lib/system/system-stats-schema";
 
 /** Poll cadence: fast enough to feel live, slow enough not to thrash ps/proc. */
 const POLL_MS = 1500;
