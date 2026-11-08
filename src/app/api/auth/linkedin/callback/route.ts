@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { exchangeCode } from "@/lib/linkedin";
+import { exchangeCode } from "@/lib/linkedin/linkedin";
 
 /**
  * OAuth callback: verify state against the cookie, check LinkedIn's error
