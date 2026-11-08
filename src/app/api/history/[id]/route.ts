@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { deleteHistoryEntry } from "@/lib/history";
+import { deleteHistoryEntry } from "@/lib/journal/history";
 
 type Context = { params: Promise<{ id: string }> };
 
