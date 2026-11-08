@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { Draft } from "@/lib/schema";
+import type { Draft } from "@/lib/journal/schema";
 
 export type EditedDraft = Draft;
 
