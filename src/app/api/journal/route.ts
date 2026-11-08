@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { OpenCodeError, runJournalPhase } from "@/lib/opencode";
-import { journalBodySchema } from "@/lib/journal-request";
-import { upsertDraftSession } from "@/lib/history";
+import { OpenCodeError, runJournalPhase } from "@/lib/journal/opencode";
+import { journalBodySchema } from "@/lib/journal/journal-request";
+import { upsertDraftSession } from "@/lib/journal/history";
 
 export async function POST(request: Request) {
   let raw: unknown;
