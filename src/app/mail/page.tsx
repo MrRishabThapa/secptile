@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Inbox, Mail, Paperclip, Plus, RefreshCw, Search, UsersRound, X } from "lucide-react";
-import { MessageView } from "@/components/mail/message-view";
-import { ComposeDrawer } from "@/components/mail/compose-drawer";
+import { MessageView } from "@/features/mail/components/message-view";
+import { ComposeDrawer } from "@/features/mail/components/compose-drawer";
 import type { MailMessageDetail } from "@/lib/mail/types";
 
 /**
