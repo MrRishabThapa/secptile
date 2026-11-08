@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { authorizeUrl, linkedinConfigured } from "@/lib/linkedin";
+import { authorizeUrl, linkedinConfigured } from "@/lib/linkedin/linkedin";
 import { randomBytes } from "node:crypto";
 
 /**
