@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { LinkedInError, postToLinkedIn } from "@/lib/linkedin/linkedin";
 import { LINKEDIN_TEXT_LIMIT } from "@/lib/linkedin/linkedin-text";
-import { getPhoto, markLinkedInBySession } from "@/lib/blog-db";
+import { getPhoto, markLinkedInBySession } from "@/lib/blog/blog-db";
 
 const bodySchema = z
   .object({
