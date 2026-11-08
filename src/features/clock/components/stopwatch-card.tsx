@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Flag, Pause, Play, RotateCcw } from "lucide-react";
-import { formatStopwatch, pad2 } from "./format-time";
+import { formatStopwatch, pad2 } from "../utils/format-time";
 
 /**
  * Stopwatch with laps. Timestamp-based like the timer: `startAt` anchors the
