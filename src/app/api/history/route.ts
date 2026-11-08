@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { listHistory } from "@/lib/history";
+import { listHistory } from "@/lib/journal/history";
 
 export async function GET() {
   try {
