@@ -1,12 +1,23 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { sameOrigin } from "@/lib/assistant";
+import {
+  cancelSend,
+  confirmSend,
+  kartabyaMentions,
+  kartabyaMessages,
+  kartabyaStats,
+  kartabyaTasks,
+  kartabyaTeamInbox,
+  prepareSend,
+} from "@/lib/kartabya/tools";
 import { OpenCodeError } from "@/lib/journal/opencode";
 import { askModel } from "@/lib/secptile/ask-model";
 import {
   SECTION_LABELS,
   SECTION_PATHS,
   classifyTurn,
+  isConfirmation,
   type Action,
 } from "@/lib/secptile/classify";
 import {
@@ -33,12 +44,15 @@ const turnBodySchema = z.object({
   text: z.string().trim().min(1).max(MAX_TURN_CHARS),
   mode: z.enum(["idle", "collecting", "session"]).default("idle"),
   chatSessionId: z.string().min(1).optional(),
+  /** A message was read back, and this turn is the answer to it. */
+  pendingSendId: z.string().min(1).optional(),
 });
 
 type TurnResult =
   | { kind: "journal" }
   | { kind: "start_blog"; text: string; transcript?: string }
   | { kind: "cancel_blog"; text: string }
+  | { kind: "confirm_send"; text: string; pendingSendId: string }
   | (ToolReply & { kind: "reply"; navigate?: boolean; chatSessionId?: string });
 
 const LOOKUP_FAILED = "I couldn't get that just now. Please try again in a moment.";
@@ -80,6 +94,22 @@ async function perform(action: Action): Promise<TurnResult> {
       return { kind: "reply", ...(await lookUp(systemSummary)) };
     case "time":
       return { kind: "reply", ...(await lookUp(currentTime)) };
+    case "kartabya_messages":
+      return { kind: "reply", ...(await lookUp(() => kartabyaMessages(action.channel))) };
+    case "kartabya_mentions":
+      return { kind: "reply", ...(await lookUp(kartabyaMentions)) };
+    case "kartabya_tasks":
+      return { kind: "reply", ...(await lookUp(kartabyaTasks)) };
+    case "kartabya_stats":
+      return { kind: "reply", ...(await lookUp(kartabyaStats)) };
+    case "kartabya_team_inbox":
+      return { kind: "reply", ...(await lookUp(kartabyaTeamInbox)) };
+    case "kartabya_send": {
+      const prepared = await prepareSend(action.channel, action.text);
+      return "reply" in prepared
+        ? { kind: "reply", ...prepared.reply }
+        : { kind: "confirm_send", text: prepared.text, pendingSendId: prepared.pendingSendId };
+    }
     case "timer":
       return {
         kind: "reply",
@@ -124,7 +154,16 @@ export async function POST(request: Request) {
       { status: 400 },
     );
   }
-  const { text, mode, chatSessionId } = parsed.data;
+  const { text, mode, chatSessionId, pendingSendId } = parsed.data;
+
+  // Anything but a clear yes cancels, so a stray remark can never post as you.
+  if (pendingSendId) {
+    if (isConfirmation(text)) {
+      return NextResponse.json({ kind: "reply", ...(await lookUp(() => confirmSend(pendingSendId))) });
+    }
+    cancelSend(pendingSendId);
+    return NextResponse.json({ kind: "reply", text: "Okay, I didn't send that." });
+  }
 
   const action = classifyTurn(text, mode);
   if (action) return NextResponse.json(await perform(action));
