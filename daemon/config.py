@@ -46,6 +46,7 @@ class Config:
         self.wake_whisper_url = str(_get(data, "wake.whisper_url", "http://127.0.0.1:8081"))
         self.wake_max_seconds = float(_get(data, "wake.max_seconds", 4.0))
         self.wake_end_seconds = float(_get(data, "wake.end_seconds", 0.5))
+        self.wake_log_heard = bool(_get(data, "wake.log_heard", False))
         self.wake_models = [str(m) for m in _get(data, "wake.models", [])]
         self.wake_threshold = float(_get(data, "wake.threshold", 0.5))
 
