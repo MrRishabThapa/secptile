@@ -2,7 +2,7 @@
 Secptile desktop assistant — the main loop (Phase 6).
 
 Flow: "secptile" wakes it -> spoken greeting -> while awake, everything you say
-goes to the journal with no wake word -> "kudos" puts it back to sleep. It also
+goes to the Chat page with no wake word -> "kudos" puts it back to sleep. It also
 falls asleep after a few quiet minutes. "mega evolve" runs OpenCode in high mode
 until "kudos". Start talking while Secptile speaks and it stops to listen.
 
@@ -42,8 +42,8 @@ LOG = logging.getLogger("secptile-assistant")
 
 WAKE_GREETING = "welcome boss, how was your day?"
 EFFORT_PATH = "/api/assistant/effort"
-COMMAND_CLIP_SECONDS = 3.0  # shorter turns get the fast check for spoken commands
-COMMAND_TAIL_SECONDS = 0.3  # silence kept after a command for that check
+SHORT_TURN_SECONDS = 5.0  # up to this much speech fits the fast whisper server
+SHORT_TURN_TAIL_SECONDS = 0.3  # silence kept after the words for that server
 HEARTBEAT_SECONDS = 5.0
 STALE_SPEECH_MS = 30_000
 MUTE_CHECK_SECONDS = 0.25
@@ -187,18 +187,18 @@ class Assistant:
     async def transcribe_turn(self, audio: np.ndarray) -> str | None:
         await self.status("transcribing")
         try:
-            # The accurate model takes seconds and mishears the commands, so a
-            # short turn gets the fast check first.
-            # Every clip also holds the lead-in and the pause that ended your turn.
+            # Short turns go to the wake server: under a second, and it knows
+            # the spoken commands. Every clip also holds the lead-in and the
+            # pause that ended your turn.
             padding = self.cfg.lead_in_seconds + self.cfg.end_of_turn_seconds
-            if audio.size <= (COMMAND_CLIP_SECONDS + padding) * self.cfg.sample_rate:
+            if audio.size <= (SHORT_TURN_SECONDS + padding) * self.cfg.sample_rate:
                 # Long trailing silence made whisper retry for 6 s, so trim the pause.
-                pause = max(0.0, self.cfg.end_of_turn_seconds - COMMAND_TAIL_SECONDS)
+                pause = max(0.0, self.cfg.end_of_turn_seconds - SHORT_TURN_TAIL_SECONDS)
                 heard = await transcribe.spot(
                     self.client, audio[: audio.size - int(pause * self.cfg.sample_rate)],
                     self.cfg.sample_rate, self.cfg.wake_whisper_url,
                 )
-                if intents.parse(heard).action in intents.COMMAND_ACTIONS:
+                if heard:
                     return heard
             return await transcribe.transcribe(
                 self.client, audio, self.cfg.sample_rate,
