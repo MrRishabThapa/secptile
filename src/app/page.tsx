@@ -1,12 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { TranscriptForm } from "@/features/voice/components/transcript-form";
 import { AssistantBar } from "@/features/assistant/components/assistant-bar";
 import { QuestionsStep } from "@/features/voice/components/questions-step";
+import { VoiceToggle } from "@/features/voice/components/voice-toggle";
 import { PastDays } from "@/features/days/components/past-days";
 import { WAKE_GREETING, detectWakePhrase } from "@/lib/journal/wake";
+import { cancelSpeech, speak } from "@/lib/voice/speaker";
 import { callJournalStream, type ApiBody, type Draft } from "@/lib/journal/journal-client";
 
 type Step = "input" | "questions";
@@ -133,16 +135,44 @@ export default function ChatPage() {
     setError(null);
   }
 
+  /**
+   * Voice output (Qwen3-TTS): every app response is spoken as well as shown.
+   * Muting lives in the speaker module (VoiceToggle); these effects only push
+   * text. Each cleanup silences speech when the utterance leaves the screen.
+   */
+  useEffect(() => {
+    if (greeting) void speak(WAKE_GREETING);
+    return cancelSpeech;
+  }, [greeting]);
+
+  const questionSpeech = questions.join(" ");
+  useEffect(() => {
+    if (step === "questions" && questionSpeech) {
+      void speak(`A few questions to complete the story. ${questionSpeech}`);
+    }
+    return cancelSpeech;
+  }, [step, questionSpeech]);
+
+  useEffect(() => {
+    if (error) void speak(`Something went wrong. ${error}`);
+    return cancelSpeech;
+  }, [error]);
+
+  useEffect(() => cancelSpeech, []);
+
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 px-6 py-10 font-sans">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-3xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
-          Chat with Secptile
-        </h1>
-        <p className="text-sm text-zinc-500 dark:text-zinc-400">
-          Speak or type your day. Questions fill the gaps — the finished draft
-          goes to <span className="font-medium text-zinc-700 dark:text-zinc-300">Today&apos;s Tea</span>.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-3xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
+            Chat with Secptile
+          </h1>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">
+            Speak or type your day. Questions fill the gaps — the finished draft
+            goes to <span className="font-medium text-zinc-700 dark:text-zinc-300">Today&apos;s Tea</span>.
+          </p>
+        </div>
+        <VoiceToggle />
       </div>
 
       {greeting && (
