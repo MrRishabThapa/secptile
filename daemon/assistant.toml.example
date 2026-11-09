@@ -44,6 +44,7 @@ barge_in = true              # talk over Secptile to interrupt it
 barge_threshold = 0.7        # raise this if speakers cause false interruptions
 barge_min_seconds = 0.24     # how long you must talk before it stops
 follow_up_seconds = 8.0      # how long it waits for an answer without a wake phrase
+awake_seconds = 180          # falls asleep after this long with nobody talking
 poll_seconds = 0.4           # how often it checks the app for text to speak
 
 [feedback]
