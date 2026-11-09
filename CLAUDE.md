@@ -42,24 +42,26 @@ without approval. A later phase adds an always-on desktop voice assistant
 
 ## Current state — IMPORTANT
 
-- Actively maintained branch: `feat/voice-responses` (5 commits ahead of
-  `refactor/folder-structure`; **not yet pushed** — SSH auth was unavailable when commits
-  were made; owner pushes manually). It adds spoken responses via Qwen3-TTS-Flash:
-  greeting, clarifying questions, and errors are spoken on the Chat page, with a
-  mute/speaking toggle (`VoiceToggle`, no emoji — lucide icons only).
-- **This branch is untested against the real DashScope API** (no `DASHSCOPE_API_KEY`
-  configured in `~/.secptile` envs when built; typecheck, eslint, and `pnpm build` all pass).
-- Not yet started: Phase 6 (always-on wake-word daemon), Phase 8 (polish,
-  streaming, accessibility). Assistant-bar/daemon plumbing exists but is partial.
+- Actively maintained branch: `phase-6-voice-conversation`, built on
+  `feat/voice-responses`. The owner pushes manually when SSH is unavailable to the agent.
+- **Phase 6 daemon (`daemon/`, see its README):** wake phrase through local Silero +
+  whisper (`engine = "whisper"`), spoken conversation, barge-in, and echo cancellation.
+  Secptile's voice is played by the daemon when it runs, and by the browser otherwise.
+- **Not yet tested with a real `DASHSCOPE_API_KEY`, a real voice, or real speakers.**
+  An end-to-end test passed with a scripted mic and a fake speech service.
+- No trained wake model exists: `livekit-wakeword` training needs a CUDA GPU or
+  Apple silicon, which this laptop doesn't have.
+- This machine runs Hyprland 0.56, where `hyprctl dispatch` takes Lua expressions
+  (`hl.dsp.*`), not the old dispatcher syntax.
+- Not yet started: Phase 8 (polish, accessibility).
 
 ## What to do next (in this order)
 
 1. Branch policy: work on feature branches (`feat/…`, `fix/…`), never on `main`.
-2. **First task — verify the commit/branch state and push parity.**
+2. **First task — live-test the conversation** with a real key, voice, and speakers.
 3. Full pending backlog, in value order:
-   - Speak a confirmation when the draft is ready (currently navigates away silently)
+   - Train a real wake model on a cloud GPU to replace the whisper wake check
    - Voice the "ready" hand-off via OpenCode streaming before LinkedIn share
-   - Phase 6: local VAD + wake-word daemon ("hey secptile"), exclusive mic ownership
    - End-to-end test of `/tracker` counts and `/feedback`
 
 ## Hard rules (paraphrased from AGENTS.md — treat as strict)
@@ -68,7 +70,7 @@ without approval. A later phase adds an always-on desktop voice assistant
 2. No secrets in the repo; never log tokens; server-side code only reads `.env.local`.
 3. Do not invent API/SDK endpoints — verify against current docs (OpenCode, DashScope,
    LinkedIn Posts API `202610`, Images API) or ask the owner.
-4. One commit per change, explicit file staging, Conventional Commits messages.
+4. One file per commit, always, with explicit staging and Conventional Commits messages.
 5. If something is ambiguous, ask the owner — don't guess.
 
 New builds will be based on `refactor/folder-structure`, which currently maps to all
