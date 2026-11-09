@@ -33,12 +33,31 @@ CREAM = "#f1e7a0"
 WHITE = "#ffffff"
 # Colours of the mega evolution symbol, top to bottom, plus its outline.
 SYMBOL_OUTLINE = "#7d3f83"
-SYMBOL_GRADIENT = ["#ee9f86", "#e3d268", "#b6d060", "#8ec9dc", "#6fb1dc", "#ecaccb"]
+SYMBOL_STOPS = ["#ee9f86", "#e3d268", "#b6d060", "#8ec9dc", "#6fb1dc", "#ecaccb"]
+SYMBOL_STEPS = 16
+SYMBOL_SLANT = 0.35
+
+
+def blend_stops(stops: list[str], steps: int) -> list[str]:
+    """Evenly spaced colours along the stops, so the gradient has no hard bands."""
+    channels = [[int(stop[i:i + 2], 16) for i in (1, 3, 5)] for stop in stops]
+    colors = []
+    for step in range(steps):
+        place = step / (steps - 1) * (len(stops) - 1)
+        low = min(int(place), len(stops) - 2)
+        mix = place - low
+        colors.append("#" + "".join(
+            f"{round(a + (b - a) * mix):02x}" for a, b in zip(channels[low], channels[low + 1])
+        ))
+    return colors
+
+
+SYMBOL_GRADIENT = blend_stops(SYMBOL_STOPS, SYMBOL_STEPS)
 
 PALETTE_LETTERS = {
     color: letter
     for letter, color in zip(
-        "abcdefghijklmno",
+        "abcdefghijklmnopqrstuvwxyz",
         [GREY, GOLD, RED, LIME, GREEN, DEEP_GREEN, CREAM, WHITE, SYMBOL_OUTLINE, *SYMBOL_GRADIENT],
     )
 }
@@ -183,26 +202,69 @@ def bounds(dots: set[Dot]) -> tuple[int, int, int, int]:
 
 
 def symbol_regions(outline: set[Dot]) -> set[Dot]:
-    """The dots inside the symbol's outline, found by flooding in from outside."""
+    """
+    The dots to fill inside the symbol's outline, keeping its holes open.
+    Each time you cross a line you swap between outside and fill, so regions
+    are coloured in layers working in from the outer edge.
+    """
     x0, y0, x1, y1 = bounds(outline)
     x0, y0, x1, y1 = x0 - 1, y0 - 1, x1 + 1, y1 + 1
     # Thicken the outline for the flood, so it can't leak through dotted gaps.
     wall = outline | {(x + dx, y + dy) for x, y in outline for dx in (-1, 0, 1) for dy in (-1, 0, 1)}
-    outside = {(x0, y0)}
-    stack = [(x0, y0)]
-    while stack:
-        x, y = stack.pop()
-        for next_dot in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
-            nx, ny = next_dot
-            if x0 <= nx <= x1 and y0 <= ny <= y1 and next_dot not in wall and next_dot not in outside:
-                outside.add(next_dot)
-                stack.append(next_dot)
-    return {
-        (x, y)
+
+    def flood(start: Dot, seen: set[Dot]) -> set[Dot]:
+        region = {start}
+        seen.add(start)
+        stack = [start]
+        while stack:
+            x, y = stack.pop()
+            for next_dot in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
+                nx, ny = next_dot
+                if x0 <= nx <= x1 and y0 <= ny <= y1 and next_dot not in wall and next_dot not in seen:
+                    seen.add(next_dot)
+                    region.add(next_dot)
+                    stack.append(next_dot)
+        return region
+
+    seen: set[Dot] = set()
+    outside = flood((x0, y0), seen)
+    regions = [
+        flood((x, y), seen)
         for x in range(x0, x1 + 1)
         for y in range(y0, y1 + 1)
-        if (x, y) not in outside and (x, y) not in outline
-    }
+        if (x, y) not in wall and (x, y) not in seen
+    ]
+
+    def touching(a: set[Dot], b: set[Dot]) -> bool:
+        reach = 3  # the thickened line between two regions
+        return any(
+            (x + dx, y + dy) in b
+            for x, y in a
+            for dx in range(-reach, reach + 1)
+            for dy in range(-reach, reach + 1)
+        )
+
+    filled: set[Dot] = set()
+    open_side = outside
+    remaining = regions
+    fill_this_layer = True
+    while remaining:
+        layer = [region for region in remaining if touching(region, open_side)]
+        if not layer:
+            break
+        remaining = [region for region in remaining if region not in layer]
+        layer_dots = set().union(*layer)
+        if fill_this_layer:
+            filled |= layer_dots
+        open_side = layer_dots
+        fill_this_layer = not fill_this_layer
+    # Between the fill and the line, the thickened wall counts as fill too.
+    return {
+        (x + dx, y + dy)
+        for x, y in filled
+        for dx in (-1, 0, 1)
+        for dy in (-1, 0, 1)
+    } - outline
 
 
 class Canvas:
@@ -262,7 +324,7 @@ def build(widget_dir: Path = WIDGET_DIR) -> dict:
     symbol_dy = (py0 + py1) // 2 - (sy0 + sy1) // 2
     outline = shift(symbol, symbol_dx, symbol_dy)
     inside = symbol_regions(outline)
-    symbol_y0, symbol_y1 = bounds(outline)[1], bounds(outline)[3]
+    symbol_x0, symbol_y0, symbol_x1, symbol_y1 = bounds(outline)
 
     all_dots = outline | inside
     for dots in list(base_poses.values()) + list(mega_poses.values()):
@@ -312,9 +374,10 @@ def build(widget_dir: Path = WIDGET_DIR) -> dict:
     def symbol_color(col: int, row: int) -> str:
         if (col, row) in outline_cells:
             return SYMBOL_OUTLINE
-        y = row * 4 + 2
-        place = (y - symbol_y0) / max(1, symbol_y1 - symbol_y0)
-        index = min(len(SYMBOL_GRADIENT) - 1, int(place * len(SYMBOL_GRADIENT)))
+        # Runs top to bottom with a slight diagonal, as in the symbol.
+        y = row * 4 + 2 + (symbol_x1 - col * 2) * SYMBOL_SLANT
+        place = (y - symbol_y0) / max(1, symbol_y1 - symbol_y0 + (symbol_x1 - symbol_x0) * SYMBOL_SLANT)
+        index = max(0, min(len(SYMBOL_GRADIENT) - 1, int(place * len(SYMBOL_GRADIENT))))
         return SYMBOL_GRADIENT[index]
 
     def evolve_frame(amount: float, grey_sprite: bool, flash: bool = False) -> dict:
