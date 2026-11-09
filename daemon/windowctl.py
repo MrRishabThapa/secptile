@@ -57,6 +57,14 @@ async def open_system(match: list[str], launch_command: str) -> str:
     return "launched Secptile"
 
 
+async def ensure_open(match: list[str], launch_command: str) -> str:
+    """Launch only if nothing is open. Never steals focus from your work."""
+    if await find_window(match):
+        return "Secptile window already open"
+    await _run_hyprctl(["dispatch", "exec", f"sh -c {shlex.quote(launch_command)}"])
+    return "launched Secptile"
+
+
 async def close_system(match: list[str]) -> str:
     address = await find_window(match)
     if not address:
