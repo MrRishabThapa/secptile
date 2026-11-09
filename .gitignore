@@ -20,6 +20,9 @@
 __pycache__/
 *.py[cod]
 daemon/.venv/
+
+# local Piper install and voice files
+local-tts/
 .pytest_cache/
 
 # debug
