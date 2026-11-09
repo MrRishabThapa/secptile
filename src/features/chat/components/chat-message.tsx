@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, AudioLines, CircleAlert, Lock, Mic } from "lucide-react";
+import { ArrowRight, AudioLines, CircleAlert, Lock, Mic, Send, X } from "lucide-react";
 
 export type ChatMessageData = {
   id: string;
@@ -60,7 +60,9 @@ function UserBubble({ message }: { message: ChatMessageData }) {
   );
 }
 
-function AssistantBubble({ message }: { message: ChatMessageData }) {
+export type SendConfirmation = { onSend: () => void; onCancel: () => void };
+
+function AssistantBubble({ message, confirm }: { message: ChatMessageData; confirm?: SendConfirmation }) {
   const isError = message.tone === "error";
   return (
     <div className="flex items-start gap-2.5">
@@ -91,7 +93,36 @@ function AssistantBubble({ message }: { message: ChatMessageData }) {
             ))}
           </ul>
         )}
-        {(message.tone === "ready" || message.href) && (
+        {confirm && (
+          <div className="mt-3 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={confirm.onSend}
+              className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-indigo-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-zinc-800"
+            >
+              <Send aria-hidden className="h-3.5 w-3.5" />
+              Send
+            </button>
+            <button
+              type="button"
+              onClick={confirm.onCancel}
+              className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:text-zinc-300 dark:hover:bg-zinc-700"
+            >
+              <X aria-hidden className="h-3.5 w-3.5" />
+              Cancel
+            </button>
+          </div>
+        )}
+        {message.href?.startsWith("/api/") ? (
+          // A sign-in leaves the app, so this is a real page load.
+          <a
+            href={message.href}
+            className="mt-2 inline-flex items-center gap-1 font-medium text-indigo-700 underline-offset-2 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:text-indigo-300"
+          >
+            {message.hrefLabel}
+            <ArrowRight aria-hidden className="h-3.5 w-3.5" />
+          </a>
+        ) : (message.tone === "ready" || message.href) && (
           <Link
             href={message.href ?? "/tea"}
             className="mt-2 inline-flex items-center gap-1 font-medium text-indigo-700 underline-offset-2 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:text-indigo-300"
@@ -105,11 +136,11 @@ function AssistantBubble({ message }: { message: ChatMessageData }) {
   );
 }
 
-export function ChatMessage({ message }: { message: ChatMessageData }) {
+export function ChatMessage({ message, confirm }: { message: ChatMessageData; confirm?: SendConfirmation }) {
   return message.role === "user" ? (
     <UserBubble message={message} />
   ) : (
-    <AssistantBubble message={message} />
+    <AssistantBubble message={message} confirm={confirm} />
   );
 }
 
