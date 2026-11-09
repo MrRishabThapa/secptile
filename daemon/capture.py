@@ -1,146 +1,183 @@
 """
-Microphone capture with an energy VAD (Phase 6).
+Microphone capture and end-of-speech detection (Phase 6).
 
-Design decisions visible to the owner:
-- Only ONE stream, opened when the daemon runs, closed instantly when muted
-  (the mute contract: "fully stops the mic stream" — no hidden capture).
-- VAD is a plain energy gate (RMS threshold + hangover), NOT a neural VAD —
-  deterministic and dependency-free, at the cost of being less clever than
-  silero (see README limitations).
-- Frames stay in memory; the lead-in ring never touches disk.
+- The mic is a `pw-record` process, so PipeWire can give us the echo-cancelled
+  source by name. Stopping the process closes the mic, which is what mute means.
+- Frames stay in memory in a short rolling buffer and never touch disk.
+- Speech boundaries come from Silero (vad.py), not raw loudness.
 """
 from __future__ import annotations
 
 import asyncio
-from array import array
+from collections import deque
+from typing import Awaitable, Callable, Iterable
 
 import numpy as np
-import sounddevice as sd
+
+from vad import SileroVad
+
+SAMPLE_RATE = 16000
+FRAME_SAMPLES = 1280  # 80 ms, the step the wake models expect
+HOP_SECONDS = FRAME_SAMPLES / SAMPLE_RATE
+BACKLOG_SECONDS = 20  # oldest audio is dropped while whisper is busy
+SPEECH_RELEASE_MARGIN = 0.15  # end of speech needs a clearly lower score
+
+ReadFrame = Callable[[], Awaitable[np.ndarray]]
+
+
+async def source_exists(name: str) -> bool:
+    """True when PipeWire currently offers a capture source with this name."""
+    process = await asyncio.create_subprocess_exec(
+        "pactl", "list", "short", "sources",
+        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL,
+    )
+    output, _ = await process.communicate()
+    return any(
+        len(columns) > 1 and columns[1] == name
+        for columns in (line.split("\t") for line in output.decode().splitlines())
+    )
 
 
 class Mic:
-    """A 16 kHz mono int16 InputStream pushed frame-by-frame into an asyncio queue."""
+    """16 kHz mono int16 frames from `pw-record`; "" uses the default source."""
 
-    def __init__(self, sample_rate: int = 16000, blocksize: int = 1280) -> None:
-        # openWakeWord-family models are trained on 1280-sample hops (80 ms).
-        self.sample_rate = sample_rate
-        self.blocksize = blocksize
-        self._loop: asyncio.AbstractEventLoop | None = None
-        self._queue: asyncio.Queue[np.ndarray | None] | None = None
-        self._stream: sd.InputStream | None = None
-
-    def _on_audio(self, indata, frames, _time_info, _status) -> None:  # noqa: ANN001
-        """PortAudio thread — never call loop APIs directly; route via call_soon."""
-        if self._loop is None or self._queue is None:
-            return
-        data = np.frombuffer(indata, dtype="int16").copy()
-        self._loop.call_soon_threadsafe(self._put, data)
-
-    def _put(self, data: np.ndarray) -> None:
-        if self._queue is not None:
-            self._queue.put_nowait(data)
-
-    def start(self) -> None:
-        if self._stream is not None:
-            return  # already listening
-        self._loop = asyncio.get_event_loop()
-        self._queue = asyncio.Queue(maxsize=256)
-        self._stream = sd.InputStream(
-            samplerate=self.sample_rate,
-            channels=1,
-            dtype="int16",
-            blocksize=self.blocksize,
-            callback=self._on_audio,
-        )
-        self._stream.start()
-
-    def stop(self) -> None:
-        """Hard-mute: the mute requirement — no stream left open, no bytes kept."""
-        if self._stream is not None:
-            self._stream.stop()
-            self._stream.close()
-            self._stream = None
-            self._loop = None
-        if self._queue is not None:
-            queue = self._queue
-            self._queue = None
-            # discard everything buffered-but-not-yet-consumed (privacy best),
-            # then hand every waiter the end-of-stream sentinel
-            while True:
-                try:
-                    queue.get_nowait()
-                except asyncio.QueueEmpty:
-                    break
-            queue.put_nowait(None)
+    def __init__(self) -> None:
+        self._process: asyncio.subprocess.Process | None = None
+        self._reader: asyncio.Task[None] | None = None
+        self._frames: deque[np.ndarray] = deque(maxlen=int(BACKLOG_SECONDS / HOP_SECONDS))
+        self._arrived = asyncio.Event()
 
     @property
     def running(self) -> bool:
-        return self._stream is not None
+        return self._process is not None
 
-    async def frames(self) -> AsyncIterator[np.ndarray]:
-        """Yield int16 frames; ends when the stream is closed (muted/stopped)."""
-        queue = self._queue
-        if queue is None:
+    async def start(self, source: str = "") -> None:
+        if self._process is not None:
             return
-        while True:
-            frame = await queue.get()
-            if frame is None:
-                return
-            yield frame
+        args = [
+            "pw-record", "--rate", str(SAMPLE_RATE), "--channels", "1",
+            "--format", "s16", "--raw", "--latency", "40ms",
+        ]
+        if source:
+            args += ["--target", source]
+        args.append("-")
+        self._frames.clear()
+        self._process = await asyncio.create_subprocess_exec(
+            *args, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL,
+        )
+        self._reader = asyncio.create_task(self._read_loop(self._process))
+
+    async def _read_loop(self, process: asyncio.subprocess.Process) -> None:
+        assert process.stdout is not None
+        try:
+            while True:
+                data = await process.stdout.readexactly(FRAME_SAMPLES * 2)
+                self._frames.append(np.frombuffer(data, dtype=np.int16))
+                self._arrived.set()
+        except asyncio.IncompleteReadError:
+            pass  # pw-record exited
+        finally:
+            self._arrived.set()
+
+    async def read(self) -> np.ndarray | None:
+        """The next frame, or None when the stream has ended."""
+        while not self._frames:
+            if self._reader is None or self._reader.done():
+                return None
+            self._arrived.clear()
+            await self._arrived.wait()
+        return self._frames.popleft()
+
+    def drain(self) -> None:
+        """Drop audio buffered while busy, so old speech is never acted on."""
+        self._frames.clear()
+
+    async def stop(self) -> None:
+        """The privacy hard stop: end the process and discard buffered audio."""
+        process, reader = self._process, self._reader
+        self._process, self._reader = None, None
+        self._frames.clear()
+        if process is not None:
+            if process.returncode is None:
+                process.terminate()
+            await process.wait()
+        if reader is not None:
+            await asyncio.gather(reader, return_exceptions=True)
+        self._arrived.set()
+
+
+class Endpointer:
+    """Finds where speech starts and ends in a stream of scored frames."""
+
+    def __init__(
+        self,
+        threshold: float,
+        pre_roll_seconds: float,
+        end_seconds: float,
+        max_seconds: float,
+        min_speech_seconds: float = 0.16,
+        seed: Iterable[np.ndarray] | None = None,
+    ) -> None:
+        self.threshold = threshold
+        self._end_frames = max(1, round(end_seconds / HOP_SECONDS))
+        self._max_frames = max(1, round(max_seconds / HOP_SECONDS))
+        self._min_frames = max(1, round(min_speech_seconds / HOP_SECONDS))
+        self._ring: deque[np.ndarray] = deque(maxlen=max(1, round(pre_roll_seconds / HOP_SECONDS)))
+        self._speech: list[np.ndarray] = list(seed or [])
+        self.started = bool(self._speech)
+        self._streak = 0
+        self._quiet = 0
+
+    def push(self, frame: np.ndarray, probability: float) -> str | None:
+        """Returns "end" after trailing silence, "max" at the length limit."""
+        if not self.started:
+            self._ring.append(frame)
+            self._streak = self._streak + 1 if probability >= self.threshold else 0
+            if self._streak >= self._min_frames:
+                self.started = True
+                self._speech = list(self._ring)
+                self._ring.clear()
+            return None
+        self._speech.append(frame)
+        released = probability < self.threshold - SPEECH_RELEASE_MARGIN
+        self._quiet = self._quiet + 1 if released else 0
+        if self._quiet >= self._end_frames:
+            return "end"
+        if len(self._speech) >= self._max_frames:
+            return "max"
+        return None
+
+    def audio(self) -> np.ndarray:
+        if not self._speech:
+            return np.empty(0, dtype=np.int16)
+        return np.concatenate(self._speech)
+
+    def frames(self) -> list[np.ndarray]:
+        return list(self._speech)
 
 
 async def record_utterance(
-    mic: Mic,
-    cfg_obj,
-    on_start=None,          # optional callable once speech begins
-) -> tuple[np.ndarray, bool]:
-    """Buffer (in memory) until speech stops; returns (audio_int16, spoke).
-
-    Pure asyncio energy VAD:
-    - lead_in ring keeps the last `lead_in_seconds` before speech, so the chime
-      never clips your first word;
-    - once RMS >= silence_threshold for any frame, speech starts;
-    - speech ends after `silence_hangover_seconds` of quiet frames;
-    - max_seconds cuts hard even if you keep talking.
-    """
-    hop_seconds = mic.blocksize / mic.sample_rate
-    lead_frames = max(1, int(cfg_obj.lead_in_seconds / hop_seconds))
-    hangover_frames = max(1, int(cfg_obj.silence_hangover_seconds / hop_seconds))
-    max_samples = int(cfg_obj.max_seconds * mic.sample_rate)
-
-    ring: list[np.ndarray] = []
-    speech: array = array("h")
-    spoke = False
-    started = False
-    quiet_streak = 0
-
-    async for frame in mic.frames():
-        if len(ring) >= lead_frames:
-            del ring[0]
-        ring.append(frame)
-        rms = float(np.sqrt(np.mean(np.square(frame.astype(np.float64)))))
-        spoke = spoke or rms >= cfg_obj.silence_threshold
-        if not started and spoke:
-            started = True
-            if on_start is not None:
-                on_start()
-            # flush the pre-roll so the chime and your first word survive
-            for lead_frame in ring:
-                speech.extend(lead_frame)
-            ring.clear()
-            quiet_streak = 0
+    read_frame: ReadFrame,
+    vad: SileroVad,
+    *,
+    threshold: float,
+    pre_roll_seconds: float,
+    end_seconds: float,
+    max_seconds: float,
+    no_speech_seconds: float | None = None,
+    seed: Iterable[np.ndarray] | None = None,
+) -> np.ndarray | None:
+    """Records one spoken turn, or returns None if nobody spoke in time."""
+    endpointer = Endpointer(
+        threshold, pre_roll_seconds, end_seconds, max_seconds, seed=seed,
+    )
+    waited = 0.0
+    while True:
+        frame = await read_frame()
+        if endpointer.push(frame, vad.probability(frame)) is not None:
+            return endpointer.audio()
+        if endpointer.started:
             continue
-        if started:
-            speech.extend(frame)
-            if rms < cfg_obj.silence_threshold:
-                quiet_streak += 1
-                if quiet_streak >= hangover_frames:
-                    break
-            else:
-                quiet_streak = 0
-        if len(speech) >= max_samples:
-            break  # hard max even mid-speech
-
-    if not started:
-        return np.empty(0, dtype=np.int16), False
-    return np.asarray(speech, dtype=np.int16), True
+        waited += HOP_SECONDS
+        if no_speech_seconds is not None and waited >= no_speech_seconds:
+            return None
