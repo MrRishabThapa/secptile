@@ -20,6 +20,8 @@ engine = "whisper"
 whisper_url = "http://127.0.0.1:8081"        # secptile-whisper-wake.service
 max_seconds = 4.0                            # longest clip checked for the phrase
 end_seconds = 0.5                            # pause that ends a wake check
+# Debugging only: writes everything the wake check hears to the system journal.
+log_heard = false
 # Only used by engine = "model":
 models = [
     "~/.secptile/assistant/models/hey-secptile.onnx",
