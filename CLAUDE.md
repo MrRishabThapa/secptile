@@ -21,9 +21,9 @@ without approval. A later phase adds an always-on desktop voice assistant
 - Next.js (App Router) + React + TypeScript (strict), Tailwind, zod for all API bodies and model contracts
 - OpenCode as the brain (invoked from route handlers; JSON-only model output validated with zod)
 - Local whisper.cpp for speech-to-text (mic recording via MediaRecorder in the browser)
-- **Voice output works via Qwen3-TTS-Flash** (Alibaba DashScope, `DASHSCOPE_API_KEY` in `.env.local`):
-  `/api/tts` proxies speech, `src/lib/voice/speaker.ts` plays it in the browser,
-  voice text comes from the Qwen voice `Cherry` (`TTS_VOICE` env to change)
+- **Voice output is local Piper** (`local-tts/`, untracked; `secptile-tts.service` on `127.0.0.1:8082`):
+  `/api/tts` proxies speech, `src/lib/voice/speaker.ts` plays it in the browser, and
+  `daemon/speaker.py` plays it on the desktop. No API key; nothing leaves the machine.
 - Blog storage: local SQLite (`node:sqlite`) at `~/.secptile/blog/blog.db` — never a repo
 - No secrets in the repo; `.env.local` only. No browser automation for LinkedIn.
 
@@ -31,12 +31,12 @@ without approval. A later phase adds an always-on desktop voice assistant
 
 - `/` Chat page — voice/text journal entry → OpenCode loop → clarifying questions → draft
 - Wake flow: transcript containing "hey secptile i am here" triggers the greeting
-  **"welcome boss, how was your day?"** (spoken aloud via Qwen TTS + shown as a banner)
+  **"welcome boss, how was your day?"** (spoken aloud via Piper + shown as a banner)
 - `/tea` — draft editor + LinkedIn preview + approve-flow (publishes only after approval,
   cover photo mandatory, optional photo attached to the LinkedIn post)
 - `/clock`, `/tracker` (posts + views analytics), `/feedback` (pending blog-comment review),
   `/mail` (e-mail phase 7a), `/updates`
-- `/api/*` route handlers: transcribe (whisper proxy), tts (Qwen TTS proxy),
+- `/api/*` route handlers: transcribe (whisper proxy), tts (local Piper proxy),
   journal, history, photos, posts, publish, linkedin auth/post, mail (google/zoho),
   assistant/transcript, system, updates, feedback
 
@@ -47,8 +47,8 @@ without approval. A later phase adds an always-on desktop voice assistant
 - **Phase 6 daemon (`daemon/`, see its README):** wake phrase through local Silero +
   whisper (`engine = "whisper"`), spoken conversation, barge-in, and echo cancellation.
   Secptile's voice is played by the daemon when it runs, and by the browser otherwise.
-- **Not yet tested with a real `DASHSCOPE_API_KEY`, a real voice, or real speakers.**
-  An end-to-end test passed with a scripted mic and a fake speech service.
+- **Not yet tested with a real voice or real speakers.** An end-to-end test passed
+  with a scripted mic, real Piper, and a silent stand-in for the audio player.
 - No trained wake model exists: `livekit-wakeword` training needs a CUDA GPU or
   Apple silicon, which this laptop doesn't have.
 - This machine runs Hyprland 0.56, where `hyprctl dispatch` takes Lua expressions
@@ -58,7 +58,7 @@ without approval. A later phase adds an always-on desktop voice assistant
 ## What to do next (in this order)
 
 1. Branch policy: work on feature branches (`feat/…`, `fix/…`), never on `main`.
-2. **First task — live-test the conversation** with a real key, voice, and speakers.
+2. **First task — live-test the conversation** with a real voice and speakers.
 3. Full pending backlog, in value order:
    - Train a real wake model on a cloud GPU to replace the whisper wake check
    - Voice the "ready" hand-off via OpenCode streaming before LinkedIn share
@@ -68,7 +68,7 @@ without approval. A later phase adds an always-on desktop voice assistant
 
 1. Never publish anything anywhere without explicit user approval in the UI.
 2. No secrets in the repo; never log tokens; server-side code only reads `.env.local`.
-3. Do not invent API/SDK endpoints — verify against current docs (OpenCode, DashScope,
+3. Do not invent API/SDK endpoints — verify against current docs (OpenCode, Piper,
    LinkedIn Posts API `202610`, Images API) or ask the owner.
 4. One file per commit, always, with explicit staging and Conventional Commits messages.
 5. If something is ambiguous, ask the owner — don't guess.
