@@ -7,6 +7,11 @@ export type ChatMessageData = {
   text: string;
   /** Numbered list shown after the text (clarifying questions). */
   questions?: string[];
+  /** Plain rows shown after the text (emails, posts). Shown, not spoken. */
+  items?: string[];
+  /** A link shown after the text. */
+  href?: string;
+  hrefLabel?: string;
   /** assistant: how the bubble reads. user: unused. */
   tone?: "error" | "ready";
   /** user: this turn was spoken, not typed. */
@@ -79,12 +84,19 @@ function AssistantBubble({ message }: { message: ChatMessageData }) {
             ))}
           </ol>
         )}
-        {message.tone === "ready" && (
+        {message.items && (
+          <ul className="mt-2 flex flex-col gap-1 border-l-2 border-zinc-300 pl-3 text-xs text-zinc-600 dark:border-zinc-600 dark:text-zinc-300">
+            {message.items.map((item, index) => (
+              <li key={index}>{item}</li>
+            ))}
+          </ul>
+        )}
+        {(message.tone === "ready" || message.href) && (
           <Link
-            href="/tea"
+            href={message.href ?? "/tea"}
             className="mt-2 inline-flex items-center gap-1 font-medium text-indigo-700 underline-offset-2 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:text-indigo-300"
           >
-            Open Today&apos;s Tea
+            {message.hrefLabel ?? "Open Today's Tea"}
             <ArrowRight aria-hidden className="h-3.5 w-3.5" />
           </Link>
         )}
