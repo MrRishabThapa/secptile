@@ -19,7 +19,7 @@ type Props = {
 const SEEN_KEY = "secptile:assistant:seen";
 const POLL_MS = 600; // spoken turns should feel immediate
 const STATE_LABEL: Record<string, string> = {
-  listening: "Listening for “hey secp”",
+  listening: "Say “secptile” to start",
   conversing: "Your turn — go ahead",
   speaking: "Speaking — talk to interrupt",
   transcribing: "Transcribing…",
