@@ -31,16 +31,22 @@ export type AssistantSpeech = {
   at: string; // ISO
 };
 
+/** How hard OpenCode thinks. "high" is what "mega evolve" turns on. */
+export type Effort = "medium" | "high";
+
 type Store = {
   status: AssistantStatus | null;
   pending: AssistantTranscript | null;
   speech?: AssistantSpeech | null;
+  effort?: Effort;
+  /** False once the configured model has refused an effort level. */
+  effortSupported?: boolean;
 };
 
 /** The daemon reports every 5 s; silence for longer means it is gone. */
 const DAEMON_ONLINE_MS = 15_000;
-/** The mic is closed in these states, so the browser should speak instead. */
-const OFFLINE_STATES = new Set(["stopped", "muted"]);
+/** The daemon won't speak in these states, so the browser should instead. */
+const OFFLINE_STATES = new Set(["stopped", "muted", "sleeping"]);
 /** An unclaimed transcript this old must not start a journal on a later visit. */
 const PENDING_TRANSCRIPT_MS = 10 * 60_000;
 
@@ -88,6 +94,23 @@ export function readSpeech(): AssistantSpeech | null {
 /** Withdraws speech, but only if it is still this one, not a newer one. */
 export function clearSpeech(id: string): void {
   if (store().speech?.id === id) store().speech = null;
+}
+
+/** Medium unless "mega evolve" is on. It resets when the app restarts. */
+export function readEffort(): Effort {
+  return store().effort ?? "medium";
+}
+
+export function publishEffort(effort: Effort): void {
+  store().effort = effort;
+}
+
+export function readEffortSupported(): boolean {
+  return store().effortSupported ?? true;
+}
+
+export function publishEffortSupported(supported: boolean): void {
+  store().effortSupported = supported;
 }
 
 /** Browser-only routes: refuse requests that other websites could trigger. */
