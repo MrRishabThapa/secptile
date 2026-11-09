@@ -1,7 +1,7 @@
 // Run with: pnpm test
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { classifyTurn } from "./classify.ts";
+import { classifyTurn, isConfirmation } from "./classify.ts";
 
 const idle = (text) => classifyTurn(text, "idle");
 const inBlog = (text) => classifyTurn(text, "session");
@@ -88,6 +88,47 @@ test("a blog in progress keeps your story", () => {
   ]) {
     assert.deepEqual(inBlog(text), { type: "journal" }, text);
   }
+});
+
+test("Kartabya questions go to Kartabya", () => {
+  assert.deepEqual(idle("Any new messages?"), { type: "kartabya_messages" });
+  assert.deepEqual(idle("Check my messages in Founders"), { type: "kartabya_messages", channel: "founders" });
+  assert.deepEqual(idle("What's new in Kartabya?"), { type: "kartabya_messages" });
+  assert.equal(idle("Did anyone mention me?").type, "kartabya_mentions");
+  assert.equal(idle("What are my tasks?").type, "kartabya_tasks");
+  assert.equal(idle("Show my stats").type, "kartabya_stats");
+  assert.equal(idle("Check Team Claude").type, "kartabya_team_inbox");
+});
+
+test("a send keeps your exact words", () => {
+  const cases = [
+    ["Send a message to Founders saying the demo is ready.", "Founders", "the demo is ready"],
+    ["Tell founders that I'll be late", "founders", "I'll be late"],
+    ["Post in Learning: Great Job Today!", "Learning", "Great Job Today"],
+    ["Message the learning channel, see you at 5", "learning", "see you at 5"],
+  ];
+  for (const [spoken, channel, text] of cases) {
+    assert.deepEqual(idle(spoken), { type: "kartabya_send", channel, text }, spoken);
+  }
+});
+
+test("mail stays mail", () => {
+  assert.equal(idle("Send an email to Sam").type, "needs_click");
+  assert.equal(idle("Any new mail?").type, "check_mail");
+});
+
+test("only a clear yes confirms a send", () => {
+  for (const yes of ["Yes", "yes.", "Yes, send it.", "Send it", "Go ahead"]) {
+    assert.equal(isConfirmation(yes), true, yes);
+  }
+  for (const no of ["No", "Cancel", "Yes but change it", "Yes I think so maybe", "Say yes", "", "Okay"]) {
+    assert.equal(isConfirmation(no), false, no);
+  }
+});
+
+test("a blog in progress keeps long stories about messages", () => {
+  const text = "I sent a message to the founders about the launch and they all loved the new plan today";
+  assert.deepEqual(inBlog(text), { type: "journal" });
 });
 
 test("short commands still work during a blog", () => {
