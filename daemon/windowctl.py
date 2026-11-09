@@ -29,8 +29,10 @@ async def _run_hyprctl(args: list[str]) -> str:
 
 
 def _matches(client: dict[str, Any], patterns: list[str]) -> bool:
-    hay = (str(client.get("class", "")) + " " + str(client.get("title", ""))).lower()
-    return any(pattern in hay for pattern in patterns)
+    # Class only: titles like "secptile - Visual Studio Code" must never match,
+    # or a spoken "close system" would close the wrong app.
+    window_class = str(client.get("class", "")).lower()
+    return any(pattern in window_class for pattern in patterns)
 
 
 async def find_window(match: list[str]) -> str | None:
