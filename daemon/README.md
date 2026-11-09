@@ -53,16 +53,20 @@ window through `windowctl.py`. The window is matched by class, never by title.
 ## Desktop widget
 
 `widget/` pins your Braille art above the wallpaper and below your windows, and
-follows the assistant's status. It is grey until "mega evolve", then in colour
-until "kudos". Clicks pass through it.
+follows the assistant's status. It is grey until "mega evolve", when the symbol
+plays over it and the mega form appears in colour until "kudos". Clicks pass
+through it.
 
 Your art is not in this repo. It lives in `~/.secptile/widget/`:
 
-- `base.txt` is the normal form. The face positions in `build_frames.py` are
-  tuned to this exact drawing, so different art needs those numbers changed.
-- `mega.txt` is optional and replaces the drawn-on mega form. Use the same grid.
+- `base.txt` is the normal form.
+- `mega.txt` is the mega form.
+- `symbol.txt` is the mega evolution symbol.
 
-After changing either, run `python3 daemon/widget/build_frames.py` and
+Face positions in `build_frames.py` are tuned to these exact drawings, so
+different art needs those numbers changed.
+
+After changing any of them, run `python3 daemon/widget/build_frames.py` and
 `systemctl --user restart secptile-widget`. To resize it, change `dotPitch` and
 `dotSize` in `shell.qml`, then copy it to `~/.secptile/widget/`.
 
