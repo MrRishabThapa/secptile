@@ -73,7 +73,7 @@ Work **one phase at a time**. At the end of each phase, stop, summarize what was
 
 ## 6. Hard rules
 
-1. **Never publish anything without explicit user approval in the UI.** No auto-posting, no exceptions.
+1. **Never publish anything without explicit user approval in the UI.** No auto-posting. The owner made one exception: a Kartabya channel message may also be approved by voice, after Secptile reads back the channel and exact text and hears a clear "yes" as the whole turn.
 2. No secrets in the repo. No tokens in client-side code.
 3. Do not invent API endpoints or SDK methods. Verify against current docs, or ask.
 4. Keep changes small and reviewable. Prefer simple code over clever code.
@@ -101,6 +101,7 @@ After each phase: list the files created (in commit order), how to run and test 
 
 - Project name: **Secptile**.
 - **Chat is Secptile's assistant for the whole app:** it answers from every section and opens any page. The blog flow starts only when the owner asks for it. It only reads: sending, publishing, approving and deleting stay an explicit click on that section's page (hard rule 1), and other people's text (mail, comments) is never sent to a model.
+- **Kartabya:** the app connects directly to Kartabya's MCP server (`src/lib/kartabya/`), with no model in between, so team messages never reach a model. OpenCode is not connected to it. Reads are free; posting follows the read-back rule above.
 - UI structure: a shared navbar (`src/components/nav-bar.tsx`) anchors the pages — **"Chat"** (`/`, voice journaling; **this is the page the app opens on**), **"Today's Tea"** (`/tea`, blog editor + LinkedIn share), **"Clock"** (`/clock`, timer, stopwatch and the local-time wall clock), **"Tracker"** (`/tracker`, filtered history of every post published through Secptile with views analytics) plus **"Feedback"** (`/feedback`, pending blog-comment review). The draft is handed from Chat to Today's Tea via sessionStorage when the story is complete; a Past-days row click opens the day in Tea for publish/verify, double-click offers removal. Built to grow: new surfaces get their own navbar entry. No emoji in the UI — use lucide icons.
 - **Tracker:** `/tracker` lists every post (blog + LinkedIn) stored in the local SQLite blog DB with a date-range filter, search, and blog-vs-LinkedIn type filter. Opening a row (`/tracker/[id]`) shows the full thread: cover photo, body, LinkedIn text, tags, and a views counter (incremented on cover fetch and thread open) plus LinkedIn post date/URN. Each row can be removed (two-click confirm), and a "Clean up duplicates" button removes duplicate records, keeping the newest per day.
 - Initialization (wake) voice command: **"hey secptile i am here"** (implemented with voice in Phase 2; detectable in transcript text from then on).
