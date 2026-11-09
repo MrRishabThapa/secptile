@@ -56,7 +56,7 @@ class Config:
         self.vad_threshold = float(_get(data, "capture.vad_threshold", 0.5))
         self.max_seconds = float(_get(data, "capture.max_seconds", 300))
         self.lead_in_seconds = float(_get(data, "capture.lead_in_seconds", 0.6))
-        self.end_of_turn_seconds = float(_get(data, "capture.end_of_turn_seconds", 2.0))
+        self.end_of_turn_seconds = float(_get(data, "capture.end_of_turn_seconds", 1.5))
 
         self.barge_in = bool(_get(data, "conversation.barge_in", True))
         self.barge_threshold = float(_get(data, "conversation.barge_threshold", 0.7))
