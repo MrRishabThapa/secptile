@@ -8,32 +8,49 @@ The daemon imports **nothing** from `src/` and `src/` imports nothing from
 `daemon/`. They only talk over **HTTP on localhost**, sharing the
 `SECPTILE_ASSISTANT_SECRET` env var (see `.env.example`):
 
-- The daemon records audio (energy VAD), transcribes it through the app's
-  existing `/api/transcribe` route (local whisper server on `127.0.0.1:8080`),
-  and posts the transcript to the app (`/api/assistant/transcript`,
-  secret-guarded) so it shows up in the Chat page.
-- The Chat page polls `/api/assistant/status` for the live daemon status
-  (`listening / transcribing / sent / muted / stopped`), which the daemon also
-  mirrors through a status file.
-- Voice commands ("hey secptile / hey secp …, open system / close system")
-  control the app window via `windowctl.py`.
+## How a conversation works
+
+1. Say **"hey secp"** or **"hey secptile"**. Silero detects speech, a small
+   local whisper server (`127.0.0.1:8081`) transcribes it, and `wake.py` looks
+   for the phrase at the start. You hear a chime.
+2. Secptile greets you in Qwen's voice, then listens. If you said more after
+   the wake phrase, it skips the greeting and uses that instead.
+3. Your turn goes through `/api/transcribe` (the accurate whisper model) to the
+   Chat page, which runs the journal. The app window opens if it isn't open.
+4. The Chat page sends its questions to `/api/assistant/speech`, and the daemon
+   speaks them. Answer out loud with no wake phrase.
+5. **Talk over Secptile to interrupt it.** Playback stops and your words become
+   your turn.
+
+Nothing here can publish. Approval stays a button click in the UI.
+
+When the daemon is off or muted, the Chat page speaks through the browser.
+
+The Chat page must be open on `/` for the journal to run. Spoken turns wait
+there for up to 10 minutes if another page is showing.
+
+Voice commands ("hey secp, open system" / "close system") control the app
+window through `windowctl.py`. The window is matched by class, never by title.
 
 ## Layout
 
 | Path | Purpose |
 | --- | --- |
-| `assistant.py` | Main entry point (event loop: wake word → capture → transcribe → forward) |
-| `wake.py` | Wake-phrase detection training + inference ("hey secptile" / "hey secp") |
-| `capture.py` | Microphone capture with energy VAD, mute/unmute handling |
-| `transcribe.py` | Whisper server client (`/inference`) |
+| `assistant.py` | Main loop: wake phrase → conversation → journal |
+| `wake.py` | Fuzzy wake phrase matching, plus the optional trained-model engine |
+| `vad.py` | Silero speech detection (local ONNX) |
+| `capture.py` | Microphone through `pw-record`, and end-of-speech detection |
+| `speaker.py` | Streams Qwen speech from `/api/tts` and plays it with `pw-cat` |
+| `transcribe.py` | Spoken turns through the app, and fast wake checks |
 | `intents.py` | Wake-phrase stripping + open/close system intents |
-| `feedback.py` | Spoken/chime feedback (`assets/chime.wav`) |
+| `feedback.py` | Wake chime (`assets/chime.wav`) |
 | `config.py` | Loads `~/.secptile/assistant.toml` (never committed) |
-| `windowctl.py` | Opens/closes the app window (Hyprland) |
-| `assets/chime.wav` | Activation sound |
+| `windowctl.py` | Opens/closes the app window (Hyprland 0.56 Lua dispatchers) |
+| `tests/` | `python -m unittest discover -s daemon/tests` |
+| `pipewire/` | Echo cancellation config, run as its own process |
 | `assistant.toml.example` | Copy to `~/.secptile/assistant.toml` and edit there |
-| `install.sh` / `uninstall.sh` | venv + config + chime + mute helper + systemd units |
-| `systemd/` | `secptile-app.service` (Next.js app), `secptile-daemon.service` (this), `secptile-whisper.service` |
+| `install.sh` / `uninstall.sh` | venv, config, models, mute helper, systemd units |
+| `systemd/` | App, daemon, whisper, wake check and echo cancellation units |
 
 `build/`, `.venv/`, `secptile_assistant.egg-info/` and `__pycache__/` are local
 build artifacts (not tracked).
@@ -41,16 +58,34 @@ build artifacts (not tracked).
 ## Run
 
 ```sh
-./daemon/install.sh          # one-time setup: venv + config + systemd units
-systemctl --user enable --now secptile-app.service   # Next.js app (port 3100)
-systemctl --user enable --now secptile-whisper.service
-systemctl --user enable --now secptile-daemon.service
+./daemon/install.sh          # one-time setup; does not open your mic
+systemctl --user enable --now secptile-daemon.service   # opens your mic
 
 journalctl --user -u secptile-daemon -f   # live status
 ```
 
-Run manually instead: `daemon/.venv/bin/python assistant.py` (config from
+Secptile's voice needs `DASHSCOPE_API_KEY` in `.env.local`. Restart
+`secptile-app.service` after adding it.
+
+Run manually instead: `cd daemon && .venv/bin/python assistant.py` (config from
 `~/.secptile/assistant.toml`).
 
-Privacy: everything (audio, transcript, chime) stays on your machine; both the
-app and the daemon bind to localhost only. Mute via `daemon/bin/secptile-mute`.
+## Tuning
+
+All of this is in `~/.secptile/assistant.toml`:
+
+- **Secptile interrupts itself on speakers:** raise `barge_threshold` or
+  `barge_min_seconds` under `[conversation]`.
+- **It cuts you off mid-thought:** raise `end_of_turn_seconds` under `[capture]`.
+- **Using a trained wake model:** set `engine = "model"` under `[wake]`.
+  Training with `livekit-wakeword` needs a CUDA GPU or Apple silicon.
+
+## Privacy
+
+- While waiting for the wake phrase, audio stays in memory. Only detected speech
+  goes to the local whisper server, and nothing is written to disk.
+- Your voice and transcripts stay on this machine, apart from the transcript
+  text the journal sends through OpenCode.
+- The text Secptile speaks is sent to Alibaba DashScope to generate its voice.
+- The app and whisper servers bind to localhost only.
+- Mute with `secptile-mute`: it ends the mic process, and unmuting reopens it.

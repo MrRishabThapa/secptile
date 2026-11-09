@@ -22,10 +22,27 @@ export type AssistantTranscript = {
   at: string; // ISO
 };
 
+/** Text the Chat page wants the daemon to say out loud. */
+export type AssistantSpeech = {
+  id: string;
+  text: string;
+  /** After speaking, the daemon listens for an answer with no wake phrase. */
+  expectReply: boolean;
+  at: string; // ISO
+};
+
 type Store = {
   status: AssistantStatus | null;
   pending: AssistantTranscript | null;
+  speech?: AssistantSpeech | null;
 };
+
+/** The daemon reports every 5 s; silence for longer means it is gone. */
+const DAEMON_ONLINE_MS = 15_000;
+/** The mic is closed in these states, so the browser should speak instead. */
+const OFFLINE_STATES = new Set(["stopped", "muted"]);
+/** An unclaimed transcript this old must not start a journal on a later visit. */
+const PENDING_TRANSCRIPT_MS = 10 * 60_000;
 
 /** Survives dev-server HMR reimports (module-level singleton). */
 function store(): Store {
@@ -49,7 +66,40 @@ export function readStatus(): AssistantStatus | null {
 }
 
 export function readPendingTranscript(): AssistantTranscript | null {
-  return store().pending;
+  const pending = store().pending;
+  if (!pending) return null;
+  return Date.now() - Date.parse(pending.at) <= PENDING_TRANSCRIPT_MS ? pending : null;
+}
+
+export function daemonOnline(): boolean {
+  const status = store().status;
+  if (!status || OFFLINE_STATES.has(status.state)) return false;
+  return Date.now() - Date.parse(status.at) <= DAEMON_ONLINE_MS;
+}
+
+export function publishSpeech(speech: AssistantSpeech): void {
+  store().speech = speech;
+}
+
+export function readSpeech(): AssistantSpeech | null {
+  return store().speech ?? null;
+}
+
+/** Withdraws speech, but only if it is still this one, not a newer one. */
+export function clearSpeech(id: string): void {
+  if (store().speech?.id === id) store().speech = null;
+}
+
+/** Browser-only routes: refuse requests that other websites could trigger. */
+export function sameOrigin(request: Request): boolean {
+  const origin = request.headers.get("origin");
+  const host = request.headers.get("host");
+  if (!origin || !host) return false;
+  try {
+    return new URL(origin).host === host;
+  } catch {
+    return false;
+  }
 }
 
 export function daemonAuthorized(headers: Headers): boolean {

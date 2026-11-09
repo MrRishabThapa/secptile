@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { pcmFromSse } from "@/lib/voice/dashscope-sse";
 
 /**
  * Voice output (Qwen3-TTS-Flash via Alibaba DashScope): Secptile speaks its
@@ -17,9 +18,13 @@ const DEFAULT_BASE_URL =
 /** Qwen3-TTS input cap (per request, characters) — enforced before calling. */
 const MAX_CHARS = 600;
 const TIMEOUT = 60_000;
+/** Streaming follows playback speed, so 600 characters can take a while. */
+const STREAM_TIMEOUT = 180_000;
 
 const bodySchema = z.object({
   text: z.string().trim().min(1).max(MAX_CHARS),
+  /** "wav" (browser, one finished file) or "pcm" (desktop daemon, streamed). */
+  format: z.enum(["wav", "pcm"]).default("wav"),
 });
 
 /** Only the fields we consume; DashScope may return more. */
@@ -58,6 +63,7 @@ export async function POST(request: Request) {
   const model = process.env.TTS_MODEL?.trim() || "qwen3-tts-flash";
   const voice = process.env.TTS_VOICE?.trim() || "Cherry";
   const language = process.env.TTS_LANGUAGE?.trim() || "Auto";
+  const streaming = parsed.data.format === "pcm";
 
   try {
     const synthesized = await fetch(baseUrl, {
@@ -65,12 +71,17 @@ export async function POST(request: Request) {
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
+        ...(streaming ? { "X-DashScope-SSE": "enable" } : {}),
       },
       body: JSON.stringify({
         model,
         input: { text: parsed.data.text, voice, language_type: language },
       }),
-      signal: AbortSignal.timeout(TIMEOUT),
+      // A closed client request stops generation, so an interruption costs nothing extra.
+      signal: AbortSignal.any([
+        request.signal,
+        AbortSignal.timeout(streaming ? STREAM_TIMEOUT : TIMEOUT),
+      ]),
     });
     if (!synthesized.ok) {
       const detail = await synthesized.text().catch(() => "");
@@ -78,6 +89,18 @@ export async function POST(request: Request) {
         { error: `Speech synthesis error (${synthesized.status}).${detail ? ` ${detail.slice(0, 200)}` : ""}` },
         { status: 502 },
       );
+    }
+
+    if (streaming) {
+      if (!synthesized.body) {
+        return NextResponse.json({ error: "Speech service returned no audio." }, { status: 502 });
+      }
+      return new Response(pcmFromSse(synthesized.body), {
+        headers: {
+          "Content-Type": "audio/pcm;rate=24000;channels=1",
+          "Cache-Control": "no-store",
+        },
+      });
     }
 
     const parsedDash = dashResponseSchema.safeParse(await synthesized.json());

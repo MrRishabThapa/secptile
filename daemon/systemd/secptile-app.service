@@ -11,7 +11,7 @@ Type=simple
 # node's bin dir is needed because next(1) is a node script.
 WorkingDirectory=%h/Projects/secptile
 Environment=PATH=__NODE_BIN_DIR__:__OPENCODE_BIN_DIR__:/usr/local/bin:/usr/bin
-ExecStart=%h/Projects/secptile/node_modules/.bin/next start -p 3100
+ExecStart=%h/Projects/secptile/node_modules/.bin/next start -H 127.0.0.1 -p 3100
 Restart=on-failure
 RestartSec=3
 

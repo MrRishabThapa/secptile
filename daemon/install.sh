@@ -5,15 +5,22 @@
 #   1. daemon venv (python -m venv) + livekit-wakeword runtime deps
 #   2. ~/.secptile/assistant.toml  +  ~/.secptile/assistant/chime.wav
 #   3. secptile-mute in ~/.local/bin
-#   4. two systemd --user units (app + daemon), enabled at login
+#   4. systemd --user units (app, whisper, wake check, echo cancel, daemon)
+#   5. the speech detection and wake check models
 #
-# Your wake models must be trained before this daemon starts — see README
-# "Phase 6: train the wake words". install.sh only CONFIGURES; it never trains.
+# The daemon itself is NOT started: it opens your mic, so that stays your call.
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SECPTILE_DIR="$HOME/.secptile/assistant"
 CONFIG_PATH="$HOME/.secptile/assistant.toml"
+WHISPER_MODEL_DIR="$HOME/.secptile/models"
+
+# Pinned downloads: the checksums below are verified before anything is used.
+SILERO_VERSION="6.2.3"
+SILERO_WHEEL_SHA256="7b7f5436cfcb02fae583a05b512ea96467fd449fe54cb49a5e4f06c51a1e43b8"
+WAKE_MODEL_URL="https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin"
+WAKE_MODEL_SHA1="137c40403d78fd54d454da0f9bd998f78703390c"
 
 echo "== Secptile assistant install =="
 
@@ -33,6 +40,33 @@ if [[ ! -f "$CONFIG_PATH" ]]; then
     echo "Wrote $CONFIG_PATH — EDIT IT (secret, launch command, match strings)."
 fi
 cp "$REPO_DIR/daemon/assets/chime.wav" "$SECPTILE_DIR/chime.wav"
+cp "$REPO_DIR/daemon/pipewire/secptile-echo-cancel.conf" "$SECPTILE_DIR/secptile-echo-cancel.conf"
+
+# Speech detection model: only the .onnx file is taken from the Silero wheel.
+VAD_MODEL="$SECPTILE_DIR/models/silero_vad.onnx"
+if [[ ! -f "$VAD_MODEL" ]]; then
+    echo "Fetching the Silero speech detection model…"
+    VAD_TMP="$(mktemp -d)"
+    "$REPO_DIR/daemon/.venv/bin/pip" download --quiet --no-deps --dest "$VAD_TMP" "silero-vad==$SILERO_VERSION"
+    echo "$SILERO_WHEEL_SHA256  $VAD_TMP/silero_vad-$SILERO_VERSION-py3-none-any.whl" | sha256sum --check --quiet
+    "$REPO_DIR/daemon/.venv/bin/python" -I -c '
+import sys, zipfile
+wheel, target = sys.argv[1:]
+with open(target, "wb") as out:
+    out.write(zipfile.ZipFile(wheel).read("silero_vad/data/silero_vad.onnx"))
+' "$VAD_TMP/silero_vad-$SILERO_VERSION-py3-none-any.whl" "$VAD_MODEL"
+    rm -rf "$VAD_TMP"
+fi
+
+# Wake check model (about 148 MB).
+mkdir -p "$WHISPER_MODEL_DIR"
+WAKE_MODEL="$WHISPER_MODEL_DIR/ggml-base.en.bin"
+if [[ ! -f "$WAKE_MODEL" ]]; then
+    echo "Fetching the wake check model…"
+    curl -fL --progress-bar -o "$WAKE_MODEL.part" "$WAKE_MODEL_URL"
+    echo "$WAKE_MODEL_SHA1  $WAKE_MODEL.part" | sha1sum --check --quiet
+    mv "$WAKE_MODEL.part" "$WAKE_MODEL"
+fi
 
 # --- 3. mute helper ----------------------------------------------------------
 mkdir -p "$HOME/.local/bin"
@@ -61,9 +95,12 @@ sed "s|WorkingDirectory=%h/Projects/secptile/daemon|WorkingDirectory=$REPO_DIR/d
 WHISPER_UNIT="$UNIT_DIR/secptile-whisper.service"
 WHISPER_UNIT_SRC="$REPO_DIR/daemon/systemd/secptile-whisper.service"
 cp "$WHISPER_UNIT_SRC" "$WHISPER_UNIT"
-systemctl --user enable secptile-whisper.service   # transcribe ready at login
+cp "$REPO_DIR/daemon/systemd/secptile-whisper-wake.service" "$UNIT_DIR/secptile-whisper-wake.service"
+cp "$REPO_DIR/daemon/systemd/secptile-echo-cancel.service" "$UNIT_DIR/secptile-echo-cancel.service"
 
 systemctl --user daemon-reload
+systemctl --user enable secptile-whisper.service   # transcribe ready at login
+systemctl --user enable --now secptile-whisper-wake.service secptile-echo-cancel.service
 
 # --- 5. secrets --------------------------------------------------------------
 if ! grep -q "SECPTILE_ASSISTANT_SECRET" "$REPO_DIR/.env.local" 2>/dev/null; then
@@ -75,9 +112,13 @@ if ! grep -q "SECPTILE_ASSISTANT_SECRET" "$REPO_DIR/.env.local" 2>/dev/null; the
 fi
 
 systemctl --user enable --now secptile-app.service
-echo "App unit enabled — the daemon is NOT started until its models exist."
-echo "After training the wake models, run:"
+echo "App unit enabled. The daemon opens your mic, so it does not start by itself."
+echo "When you are ready, run:"
 echo "  systemctl --user enable --now secptile-daemon.service"
+if ! grep -q '^DASHSCOPE_API_KEY=.' "$REPO_DIR/.env.local" 2>/dev/null; then
+    echo "Secptile can't speak yet: add DASHSCOPE_API_KEY to .env.local, then run:"
+    echo "  systemctl --user restart secptile-app.service"
+fi
 echo "Watch logs: journalctl --user -u secptile-daemon -f"
-echo "Mute hotkey (Hyprland ~/.config/hypr/hyprland.conf):"
-echo "  bind = SUPER SHIFT, M, exec, secptile-mute"
+echo "Mute hotkey (Hyprland 0.56 Lua config):"
+echo '  hl.bind("SUPER + SHIFT + M", hl.dsp.exec_cmd("secptile-mute"))'

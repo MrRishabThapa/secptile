@@ -5,6 +5,7 @@ import {
   daemonAuthorized,
   publishStatus,
   readPendingTranscript,
+  readSpeech,
   readStatus,
 } from "@/lib/assistant";
 
@@ -18,9 +19,13 @@ const statusBodySchema = z.object({
 });
 
 export async function GET() {
+  await connection();
+  const speech = readSpeech();
   return NextResponse.json({
     status: readStatus(),
     pending: readPendingTranscript(),
+    // The age lets a restarted daemon skip speech it should no longer say.
+    speech: speech && { ...speech, ageMs: Date.now() - Date.parse(speech.at) },
   });
 }
 

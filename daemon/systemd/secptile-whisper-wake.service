@@ -1,0 +1,14 @@
+[Unit]
+Description=Secptile wake check (small whisper.cpp server, localhost only)
+After=default.target
+
+[Service]
+Type=simple
+# base.en with a short audio window answers in under a second on a laptop CPU.
+# More than 4 threads was slower on the i7-1165G7 (4 cores, 8 threads).
+ExecStart=/usr/bin/whisper-server -m %h/.secptile/models/ggml-base.en.bin --host 127.0.0.1 --port 8081 --inference-path /inference -t 4 -ac 300 --no-timestamps
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target

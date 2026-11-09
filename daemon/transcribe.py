@@ -1,13 +1,23 @@
 """
-Transcription (Phase 6): reuse the Phase 2 setup end-to-end — the daemon
-uploads the utterance (multipart `file`, like the browser clip) to the app's
-/api/transcribe route, which forwards to the local whisper.cpp server. Nothing
-is duplicated: no local model is even loaded here.
+Transcription (Phase 6).
+
+- Spoken turns go through the app's /api/transcribe route (the accurate model).
+- Wake checks go straight to a small dedicated whisper server, because they
+  must answer in under a second. Its clips are never stored.
 """
 from __future__ import annotations
 
+import io
+import re
+import wave
+
 import httpx
 import numpy as np
+
+# Biases whisper toward the brand words. Do not add "hey" here: a prompt like
+# "Hey Secp" made it hear "hey there, pass the salt" as "Hey Secp, pass...".
+WAKE_PROMPT = "Secp. Secptile."
+NON_SPEECH = re.compile(r"[\[(][^\])]*[\])]")
 
 
 class TranscribeError(RuntimeError):
@@ -15,39 +25,60 @@ class TranscribeError(RuntimeError):
 
 
 def to_wav_bytes(audio: np.ndarray, sample_rate: int) -> bytes:
-    """16 kHz 16-bit mono PCM -> RIFF/WAV, the format whisper.cpp expects."""
-    import io
-    import wave
-
-    buf = io.BytesIO()
-    with wave.open(buf, "wb") as handle:
+    """16-bit mono PCM to RIFF/WAV, the format whisper.cpp expects."""
+    buffer = io.BytesIO()
+    with wave.open(buffer, "wb") as handle:
         handle.setnchannels(1)
         handle.setsampwidth(2)
         handle.setframerate(sample_rate)
         handle.writeframes(audio.tobytes())
-    return buf.getvalue()
+    return buffer.getvalue()
+
+
+def clean_text(text: str) -> str:
+    """Removes whisper's non-speech tags, such as [BLANK_AUDIO] or (wind)."""
+    return NON_SPEECH.sub("", text).strip()
 
 
 async def transcribe(
+    client: httpx.AsyncClient,
     audio: np.ndarray,
     sample_rate: int,
     app_base_url: str,
     app_transcribe_path: str,
 ) -> str:
-    wav = to_wav_bytes(audio, sample_rate)
-    if not wav or len(wav) < 128:  # empty clip: header alone is ~44 bytes
-        raise TranscribeError("Utterance was empty — say something after the chime.")
-    files = {"file": ("utterance.wav", wav, "audio/wav")}
-    async with httpx.AsyncClient(timeout=300.0) as client:
-        response = await client.post(
-            app_base_url.rstrip("/") + app_transcribe_path,
-            files=files,
-            data={"response_format": "json"},
-        )
+    """Transcribes a spoken turn through the app."""
+    files = {"file": ("utterance.wav", to_wav_bytes(audio, sample_rate), "audio/wav")}
+    response = await client.post(
+        app_base_url.rstrip("/") + app_transcribe_path,
+        files=files,
+        data={"response_format": "json"},
+        timeout=300.0,
+    )
     if response.status_code != 200:
         raise TranscribeError(f"Transcribe endpoint returned {response.status_code}")
-    payload = response.json()
-    text = str(payload.get("text", "")).strip()
+    text = clean_text(str(response.json().get("text", "")))
     if not text:
         raise TranscribeError("Transcription produced no text.")
     return text
+
+
+async def spot(
+    client: httpx.AsyncClient,
+    audio: np.ndarray,
+    sample_rate: int,
+    whisper_url: str,
+) -> str:
+    """Transcribes a short clip on the wake server. Returns "" on any failure."""
+    files = {"file": ("clip.wav", to_wav_bytes(audio, sample_rate), "audio/wav")}
+    try:
+        response = await client.post(
+            whisper_url.rstrip("/") + "/inference",
+            files=files,
+            data={"response_format": "json", "prompt": WAKE_PROMPT},
+            timeout=15.0,
+        )
+        response.raise_for_status()
+        return clean_text(str(response.json().get("text", "")))
+    except (httpx.HTTPError, ValueError):
+        return ""
