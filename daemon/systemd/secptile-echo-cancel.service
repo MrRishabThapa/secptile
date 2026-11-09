@@ -1,0 +1,13 @@
+[Unit]
+Description=Secptile echo cancellation (lets you interrupt Secptile on speakers)
+After=pipewire.service wireplumber.service
+PartOf=pipewire.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/pipewire -c %h/.secptile/assistant/secptile-echo-cancel.conf
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target
