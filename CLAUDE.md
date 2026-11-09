@@ -53,6 +53,10 @@ without approval. A later phase adds an always-on desktop voice assistant
   Apple silicon, which this laptop doesn't have.
 - This machine runs Hyprland 0.56, where `hyprctl dispatch` takes Lua expressions
   (`hl.dsp.*`), not the old dispatcher syntax.
+- **Chat is the assistant for the whole app.** `src/lib/secptile/` routes each turn: plain rules
+  first, then OpenCode choosing from a fixed action list. Lookups only read, and mail or comment
+  text never goes to a model. A blog starts only when asked for. Sending, publishing and
+  approving stay a click on their own pages.
 - Not yet started: Phase 8 (polish, accessibility).
 
 ## What to do next (in this order)
