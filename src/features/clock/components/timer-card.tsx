@@ -45,12 +45,19 @@ function beepFinished() {
  * countdown does not drift from throttled interval callbacks. Pauses just
  * capture the remainder and re-arm a fresh deadline on resume.
  */
-export function TimerCard() {
-  const [durationMs, setDurationMs] = useState(5 * 60_000);
-  const [remainingMs, setRemainingMs] = useState(() => 5 * 60_000);
-  const [running, setRunning] = useState(false);
+export function TimerCard({ autoStartMinutes }: { autoStartMinutes?: number }) {
+  const initialMs =
+    Math.min(MAX_MINUTES, Math.max(MIN_MINUTES, autoStartMinutes ?? 5)) * 60_000;
+  const [durationMs, setDurationMs] = useState(initialMs);
+  const [remainingMs, setRemainingMs] = useState(initialMs);
+  const [running, setRunning] = useState(Boolean(autoStartMinutes));
   const [done, setDone] = useState(false);
   const endAtRef = useRef<number | null>(null);
+
+  // A voice-started timer ("set a timer for 5 minutes") begins counting on arrival.
+  useEffect(() => {
+    if (autoStartMinutes) endAtRef.current = Date.now() + initialMs;
+  }, [autoStartMinutes, initialMs]);
 
   useEffect(() => {
     if (!running) return;
