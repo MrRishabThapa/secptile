@@ -1,0 +1,12 @@
+[Unit]
+Description=Secptile desktop widget (Braille art on the wallpaper layer)
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/qs -p %h/.secptile/widget
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=default.target
