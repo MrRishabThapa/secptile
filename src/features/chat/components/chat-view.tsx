@@ -9,6 +9,7 @@ import { PastDays } from "@/features/days/components/past-days";
 import { VoiceToggle } from "@/features/voice/components/voice-toggle";
 import { callJournalStream, type ApiBody, type Draft } from "@/lib/journal/journal-client";
 import { WAKE_GREETING, detectWakePhrase } from "@/lib/journal/wake";
+import { sendAssistantTurn } from "@/lib/secptile/turn-client";
 import { announceThroughDaemon, cancelSpeech, speak } from "@/lib/voice/speaker";
 import { ChatComposer } from "./chat-composer";
 import {
@@ -28,14 +29,22 @@ const RETURNED_QUESTIONS_KEY = "secptile:questions";
 const QUESTIONS_INTRO = "A few questions to complete the story:";
 const DRAFT_READY = "Your draft is ready in Today's Tea.";
 
+const WELCOME =
+  "What can I do for you? Ask about your mail, posts, comments or updates, open any section, or say \u201cwrite a blog\u201d to turn your day into a post.";
+
 const savedChatSchema = z.object({
   sessionId: z.string().nullable(),
+  collecting: z.boolean().default(false),
+  chatSessionId: z.string().nullable().default(null),
   messages: z.array(
     z.object({
       id: z.string(),
       role: z.enum(["user", "assistant"]),
       text: z.string(),
       questions: z.array(z.string()).optional(),
+      items: z.array(z.string()).optional(),
+      href: z.string().optional(),
+      hrefLabel: z.string().optional(),
       tone: z.enum(["error", "ready"]).optional(),
       spoken: z.boolean().optional(),
       hasPrivateNotes: z.boolean().optional(),
@@ -72,6 +81,8 @@ function questionSpeech(questions: string[]): string {
 function loadChat(): {
   messages: ChatMessageData[];
   sessionId: string | null;
+  collecting: boolean;
+  chatSessionId: string | null;
   returnedQuestions: string[] | null;
 } {
   const saved = readStored(CHAT_KEY, savedChatSchema);
@@ -85,12 +96,16 @@ function loadChat(): {
     return {
       messages: [...(saved?.messages ?? []), questionsMessage(returned.questions)],
       sessionId: returned.sessionId,
+      collecting: false,
+      chatSessionId: saved?.chatSessionId ?? null,
       returnedQuestions: returned.questions,
     };
   }
   return {
     messages: saved?.messages ?? [],
     sessionId: saved?.sessionId ?? null,
+    collecting: saved?.collecting ?? false,
+    chatSessionId: saved?.chatSessionId ?? null,
     returnedQuestions: null,
   };
 }
@@ -104,16 +119,20 @@ function stashHandoff(sessionId: string | null, draft: Draft) {
 }
 
 /**
- * The Chat page: one conversation thread showing every transcript and every
- * response. Typed, browser-mic and desktop-daemon turns all land here.
- * Nothing in this view can publish; drafts leave for Today's Tea, where
- * approval stays a button click.
+ * The Chat page: Secptile's one conversation. Typed, browser-mic and
+ * desktop-daemon turns all land here, and /api/assistant/turn decides what each
+ * one wants. A blog runs only when you ask for one. Nothing in this view can
+ * publish or send; those stay a button click on their own pages.
  */
 export function ChatView() {
   const router = useRouter();
   const [initial] = useState(loadChat);
   const [messages, setMessages] = useState<ChatMessageData[]>(initial.messages);
   const [sessionId, setSessionId] = useState<string | null>(initial.sessionId);
+  /** You asked for a blog, and your next turn is the day's story. */
+  const [collecting, setCollecting] = useState(initial.collecting);
+  /** OpenCode's memory of general questions, separate from any blog. */
+  const [chatSessionId, setChatSessionId] = useState<string | null>(initial.chatSessionId);
   const [draftText, setDraftText] = useState("");
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<string | null>(null);
@@ -121,11 +140,14 @@ export function ChatView() {
 
   useEffect(() => {
     try {
-      sessionStorage.setItem(CHAT_KEY, JSON.stringify({ messages, sessionId }));
+      sessionStorage.setItem(
+        CHAT_KEY,
+        JSON.stringify({ messages, sessionId, collecting, chatSessionId }),
+      );
     } catch {
       /* private mode — the thread lasts until the page closes */
     }
-  }, [messages, sessionId]);
+  }, [messages, sessionId, collecting, chatSessionId]);
 
   // Scrolls the thread only, so a new message never moves the page under you.
   useEffect(() => {
@@ -163,6 +185,20 @@ export function ChatView() {
     void speak(questionSpeech(data.questions), { expectReply: true });
   }
 
+  function say(text: string) {
+    append(newMessage({ role: "assistant", text }));
+    void speak(text, { expectReply: true });
+  }
+
+  async function runJournal(text: string, privateNotes: string | undefined) {
+    const data = await callJournalStream(
+      sessionId ? { sessionId, answers: [text] } : { transcript: text, privateNotes },
+      setProgress,
+    );
+    setCollecting(false);
+    handlePhase(data.sessionId, data);
+  }
+
   async function sendTurn(text: string, options: { spoken?: boolean; privateNotes?: string } = {}) {
     cancelSpeech();
     const turn = newMessage({
@@ -174,13 +210,43 @@ export function ChatView() {
     append(turn);
     setBusy(true);
     try {
-      const data = await callJournalStream(
-        sessionId
-          ? { sessionId, answers: [text] }
-          : { transcript: text, privateNotes: options.privateNotes },
-        setProgress,
-      );
-      handlePhase(data.sessionId, data);
+      const result = await sendAssistantTurn({
+        text,
+        mode: sessionId ? "session" : collecting ? "collecting" : "idle",
+        chatSessionId: chatSessionId ?? undefined,
+      });
+      if (result.kind === "journal") {
+        await runJournal(text, options.privateNotes);
+      } else if (result.kind === "start_blog") {
+        if (result.transcript) {
+          await runJournal(result.transcript, options.privateNotes);
+        } else {
+          setCollecting(true);
+          say(result.text);
+        }
+      } else if (result.kind === "cancel_blog") {
+        setCollecting(false);
+        setSessionId(null);
+        say(result.text);
+      } else {
+        if (result.chatSessionId) setChatSessionId(result.chatSessionId);
+        append(
+          newMessage({
+            role: "assistant",
+            text: result.text,
+            items: result.items,
+            href: result.href,
+            hrefLabel: result.hrefLabel,
+          }),
+        );
+        if (result.navigate && result.href) {
+          // Leaving this page cancels its speech, so the daemon takes this line.
+          announceThroughDaemon(result.text);
+          router.push(result.href);
+        } else {
+          void speak(result.text);
+        }
+      }
     } catch (cause) {
       const reason = cause instanceof Error ? cause.message : "Something went wrong.";
       // Give the words back, so a long spoken day is never lost to a failed send.
@@ -217,6 +283,8 @@ export function ChatView() {
     cancelSpeech();
     setMessages([]);
     setSessionId(null);
+    setCollecting(false);
+    setChatSessionId(null);
     setDraftText("");
   }
 
@@ -261,7 +329,7 @@ export function ChatView() {
             message={{
               id: "welcome",
               role: "assistant",
-              text: "How was your day? Talk it out or type it: what you did, who you talked to, what broke, what you learned.",
+              text: WELCOME,
             }}
           />
           {messages.map((message) => (
@@ -277,8 +345,14 @@ export function ChatView() {
             onVoiceText={handleVoiceText}
             onSubmit={submitDraft}
             busy={busy}
-            placeholder={sessionId ? "Answer in one go…" : "Tell me about your day…"}
-            allowPrivateNotes={!sessionId && !busy}
+            placeholder={
+              sessionId
+                ? "Answer in one go…"
+                : collecting
+                  ? "Tell me about your day…"
+                  : "Ask Secptile anything…"
+            }
+            allowPrivateNotes={collecting && !busy}
           />
         </div>
       </section>
