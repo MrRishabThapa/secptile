@@ -7,6 +7,7 @@
 #   3. secptile-mute in ~/.local/bin
 #   4. systemd --user units (app, whisper, wake check, echo cancel, daemon)
 #   5. the speech detection and wake check models
+#   6. Piper and its voice in local-tts/ (Secptile's local voice)
 #
 # The daemon itself is NOT started: it opens your mic, so that stays your call.
 set -euo pipefail
@@ -21,6 +22,9 @@ SILERO_VERSION="6.2.3"
 SILERO_WHEEL_SHA256="7b7f5436cfcb02fae583a05b512ea96467fd449fe54cb49a5e4f06c51a1e43b8"
 WAKE_MODEL_URL="https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin"
 WAKE_MODEL_SHA1="137c40403d78fd54d454da0f9bd998f78703390c"
+PIPER_VERSION="1.8.0"
+PIPER_VOICE="en_US-lessac-medium"
+PIPER_VOICE_SHA256="5efe09e69902187827af646e1a6e9d269dee769f9877d17b16b1b46eeaaf019f"
 
 echo "== Secptile assistant install =="
 
@@ -68,6 +72,20 @@ if [[ ! -f "$WAKE_MODEL" ]]; then
     mv "$WAKE_MODEL.part" "$WAKE_MODEL"
 fi
 
+# Secptile's voice: Piper in its own venv, separate from the daemon's.
+TTS_DIR="$REPO_DIR/local-tts"
+if [[ ! -d "$TTS_DIR/.venv" ]]; then
+    python3 -m venv "$TTS_DIR/.venv"
+fi
+"$TTS_DIR/.venv/bin/pip" install --quiet "piper-tts[http]==$PIPER_VERSION"
+PIPER_VOICE_FILE="$TTS_DIR/voices/$PIPER_VOICE.onnx"
+if [[ ! -f "$PIPER_VOICE_FILE" ]]; then
+    echo "Fetching the Piper voice…"
+    mkdir -p "$TTS_DIR/voices"
+    "$TTS_DIR/.venv/bin/python" -m piper.download_voices "$PIPER_VOICE" --data-dir "$TTS_DIR/voices"
+    echo "$PIPER_VOICE_SHA256  $PIPER_VOICE_FILE" | sha256sum --check --quiet
+fi
+
 # --- 3. mute helper ----------------------------------------------------------
 mkdir -p "$HOME/.local/bin"
 install -m 755 "$REPO_DIR/daemon/bin/secptile-mute" "$HOME/.local/bin/secptile-mute"
@@ -95,12 +113,13 @@ sed "s|WorkingDirectory=%h/Projects/secptile/daemon|WorkingDirectory=$REPO_DIR/d
 WHISPER_UNIT="$UNIT_DIR/secptile-whisper.service"
 WHISPER_UNIT_SRC="$REPO_DIR/daemon/systemd/secptile-whisper.service"
 cp "$WHISPER_UNIT_SRC" "$WHISPER_UNIT"
+sed "s|%h/Projects/secptile|$REPO_DIR|g" "$REPO_DIR/daemon/systemd/secptile-tts.service" > "$UNIT_DIR/secptile-tts.service"
 cp "$REPO_DIR/daemon/systemd/secptile-whisper-wake.service" "$UNIT_DIR/secptile-whisper-wake.service"
 cp "$REPO_DIR/daemon/systemd/secptile-echo-cancel.service" "$UNIT_DIR/secptile-echo-cancel.service"
 
 systemctl --user daemon-reload
 systemctl --user enable secptile-whisper.service   # transcribe ready at login
-systemctl --user enable --now secptile-whisper-wake.service secptile-echo-cancel.service
+systemctl --user enable --now secptile-tts.service secptile-whisper-wake.service secptile-echo-cancel.service
 
 # --- 5. secrets --------------------------------------------------------------
 if ! grep -q "SECPTILE_ASSISTANT_SECRET" "$REPO_DIR/.env.local" 2>/dev/null; then
@@ -115,10 +134,6 @@ systemctl --user enable --now secptile-app.service
 echo "App unit enabled. The daemon opens your mic, so it does not start by itself."
 echo "When you are ready, run:"
 echo "  systemctl --user enable --now secptile-daemon.service"
-if ! grep -q '^DASHSCOPE_API_KEY=.' "$REPO_DIR/.env.local" 2>/dev/null; then
-    echo "Secptile can't speak yet: add DASHSCOPE_API_KEY to .env.local, then run:"
-    echo "  systemctl --user restart secptile-app.service"
-fi
 echo "Watch logs: journalctl --user -u secptile-daemon -f"
 echo "Mute hotkey (Hyprland 0.56 Lua config):"
 echo '  hl.bind("SUPER + SHIFT + M", hl.dsp.exec_cmd("secptile-mute"))'
