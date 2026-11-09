@@ -8,10 +8,12 @@ set -euo pipefail
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 systemctl --user disable --now secptile-daemon.service 2>/dev/null || true
+systemctl --user disable --now secptile-tts.service 2>/dev/null || true
 systemctl --user disable --now secptile-echo-cancel.service 2>/dev/null || true
 systemctl --user disable --now secptile-whisper-wake.service 2>/dev/null || true
 systemctl --user disable --now secptile-app.service 2>/dev/null || true
 rm -f "$HOME/.config/systemd/user/secptile-daemon.service" "$HOME/.config/systemd/user/secptile-app.service" \
+    "$HOME/.config/systemd/user/secptile-tts.service" \
     "$HOME/.config/systemd/user/secptile-echo-cancel.service" "$HOME/.config/systemd/user/secptile-whisper-wake.service"
 systemctl --user daemon-reload
 
