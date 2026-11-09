@@ -50,6 +50,22 @@ there for up to 10 minutes if another page is showing.
 Voice commands ("secptile, open system" / "secptile, close system") control the app
 window through `windowctl.py`. The window is matched by class, never by title.
 
+## Desktop widget
+
+`widget/` pins your Braille art above the wallpaper and below your windows, and
+follows the assistant's status. It is grey until "mega evolve", then in colour
+until "kudos". Clicks pass through it.
+
+Your art is not in this repo. It lives in `~/.secptile/widget/`:
+
+- `base.txt` is the normal form. The face positions in `build_frames.py` are
+  tuned to this exact drawing, so different art needs those numbers changed.
+- `mega.txt` is optional and replaces the drawn-on mega form. Use the same grid.
+
+After changing either, run `python3 daemon/widget/build_frames.py` and
+`systemctl --user restart secptile-widget`. To resize it, change `dotPitch` and
+`dotSize` in `shell.qml`, then copy it to `~/.secptile/widget/`.
+
 ## Layout
 
 | Path | Purpose |
