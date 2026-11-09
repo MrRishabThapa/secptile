@@ -1,4 +1,4 @@
-"""Wake matching, checked against what whisper actually produced on this machine."""
+"""Wake word matching, checked against what whisper produced on this machine."""
 import sys
 import unittest
 from pathlib import Path
@@ -8,29 +8,34 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from wake import match_wake  # noqa: E402
 
 SHOULD_WAKE = [
-    ("Hey, Sec.", ""),
-    ("Hey Secp.", ""),
-    ("Hey Sec, tile.", ""),
+    ("Secptile.", ""),
+    ("secptile", ""),
+    ("Septile.", ""),
+    ("Sectile", ""),
+    ("Sep tile", ""),
+    ("Sec, tile.", ""),
     ("Hey Secptile.", ""),
-    ("Hey Sep tile", ""),
-    ("Hey Sec, Tylia I'm here.", ""),
-    ("Hey Secptile, I am here.", ""),
-    ("Hey Secp, open system.", "open system."),
-    ("K-sec how was your May?", "how was your May?"),
+    ("Secptile. I'm here.", ""),
+    ("Secptile, I am here.", ""),
+    ("Secptile open system.", "open system."),
+    ("Secptile. How was your May?", "How was your May?"),
 ]
 
 SHOULD_NOT_WAKE = [
+    "Reptile.",
+    "Tuck, tile.",
+    "Hostile.",
+    "The textile mill.",
+    "But in a secstile.",
+    "sector",
+    "second",
+    "Exptile.",
+    "Hey Secp.",
+    "Hey, Sec.",
     "Hey now can you pass me a salt?",
-    "Hey, can you help me?",
-    "Haseer it was in the weather.",
-    "Hey Google set her timer.",
-    "K-step on it.",
-    "Hey, Simon, you're coming.",
-    "Case at the table.",
     "Give me a second.",
     "I will be now in a sec.",
     "The September meeting moved.",
-    "Hey sexy.",
     "Okay, thanks a lot.",
     "",
     "Hey",
@@ -38,7 +43,7 @@ SHOULD_NOT_WAKE = [
 
 
 class MatchWakeTest(unittest.TestCase):
-    def test_wake_phrases_match(self) -> None:
+    def test_wake_word_matches(self) -> None:
         for transcript, remainder in SHOULD_WAKE:
             with self.subTest(transcript):
                 match = match_wake(transcript)
