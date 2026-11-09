@@ -35,6 +35,7 @@ const OAUTH_EXEMPT = [
   /^\/api\/auth\/linkedin\/(start|callback)$/,
   // Phase 7 mail providers follow the same shape (e.g. /api/mail/google/callback).
   /^\/api\/mail\/[^/]+\/(login|callback)$/,
+  /^\/api\/kartabya\/(login|callback)$/,
 ];
 
 export function proxy(request: NextRequest): NextResponse {
