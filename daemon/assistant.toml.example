@@ -37,7 +37,7 @@ vad_model = "~/.secptile/assistant/models/silero_vad.onnx"
 vad_threshold = 0.5          # speech score from 0 to 1
 max_seconds = 300            # hard stop even if you keep talking
 lead_in_seconds = 0.6        # audio kept from just before speech starts
-end_of_turn_seconds = 2.0    # pause that means you've finished your turn
+end_of_turn_seconds = 1.5    # pause that means you've finished your turn
 
 [conversation]
 barge_in = true              # talk over Secptile to interrupt it
