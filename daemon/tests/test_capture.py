@@ -79,12 +79,14 @@ class RecordUtteranceTest(unittest.TestCase):
 
 
 class SplitTextTest(unittest.TestCase):
-    def test_short_text_stays_whole(self) -> None:
-        self.assertEqual(split_text("One. Two."), ["One. Two."])
+    def test_splits_into_sentences(self) -> None:
+        self.assertEqual(
+            split_text("First one? Second one! Third one."),
+            ["First one?", "Second one!", "Third one."],
+        )
 
-    def test_long_text_splits_at_sentences_within_limit(self) -> None:
-        pieces = split_text("First one here. Second one here. Third one here.", limit=20)
-        self.assertEqual(pieces, ["First one here.", "Second one here.", "Third one here."])
+    def test_empty_text_has_no_pieces(self) -> None:
+        self.assertEqual(split_text("   "), [])
 
     def test_one_huge_sentence_still_fits(self) -> None:
         pieces = split_text("word " * 300, limit=100)
