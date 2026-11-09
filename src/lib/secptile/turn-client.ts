@@ -4,6 +4,7 @@ const turnResultSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("journal") }),
   z.object({ kind: z.literal("start_blog"), text: z.string(), transcript: z.string().optional() }),
   z.object({ kind: z.literal("cancel_blog"), text: z.string() }),
+  z.object({ kind: z.literal("confirm_send"), text: z.string(), pendingSendId: z.string() }),
   z.object({
     kind: z.literal("reply"),
     text: z.string(),
@@ -22,6 +23,7 @@ export async function sendAssistantTurn(body: {
   text: string;
   mode: "idle" | "collecting" | "session";
   chatSessionId?: string;
+  pendingSendId?: string;
 }): Promise<TurnResult> {
   const response = await fetch("/api/assistant/turn", {
     method: "POST",
