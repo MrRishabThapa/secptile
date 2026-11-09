@@ -137,7 +137,7 @@ export default function ChatPage() {
   }
 
   /**
-   * Voice output (Qwen3-TTS): every app response is spoken as well as shown.
+   * Voice output (local Piper): every app response is spoken as well as shown.
    * Muting lives in the speaker module (VoiceToggle); these effects only push
    * text. Each cleanup silences speech when the utterance leaves the screen.
    */
