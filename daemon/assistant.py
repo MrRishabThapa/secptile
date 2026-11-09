@@ -1,15 +1,15 @@
 """
 Secptile desktop assistant — the main loop (Phase 6).
 
-Flow: wake phrase -> greeting in Qwen's voice -> your turn -> journal in the
-app -> Secptile speaks its questions -> your turn, with no wake phrase needed.
+Flow: wake phrase -> spoken greeting -> your turn -> journal in the app ->
+Secptile speaks its questions -> your turn, with no wake phrase needed.
 Start talking while Secptile speaks and it stops to listen.
 
 Privacy model:
 - while waiting, audio stays in memory; only speech goes to the local whisper
   wake server, and nothing is stored;
 - the mic process is ended whenever the mute flag file exists;
-- only Secptile's reply text leaves the machine (to Qwen, through the app);
+- Secptile's voice is generated locally by Piper;
 - nothing here can publish: the transcript enters the normal journal flow, and
   approval stays a button click in the UI (AGENTS.md hard rule 1).
 
