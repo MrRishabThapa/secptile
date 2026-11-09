@@ -121,6 +121,19 @@ systemctl --user daemon-reload
 systemctl --user enable secptile-whisper.service   # transcribe ready at login
 systemctl --user enable --now secptile-tts.service secptile-whisper-wake.service secptile-echo-cancel.service
 
+# Desktop widget. Your Braille art stays in ~/.secptile/widget/base.txt, not this repo.
+if [[ -f "$SECPTILE_DIR/../widget/base.txt" ]]; then
+    WIDGET_DIR="$HOME/.secptile/widget"
+    python3 -I "$REPO_DIR/daemon/widget/build_frames.py"
+    cp "$REPO_DIR/daemon/widget/shell.qml" "$WIDGET_DIR/shell.qml"
+    cp "$REPO_DIR/daemon/systemd/secptile-widget.service" "$UNIT_DIR/secptile-widget.service"
+    systemctl --user daemon-reload
+    systemctl --user enable secptile-widget.service
+    systemctl --user restart secptile-widget.service
+else
+    echo "Widget skipped: put your Braille art at ~/.secptile/widget/base.txt to enable it."
+fi
+
 # --- 5. secrets --------------------------------------------------------------
 if ! grep -q "SECPTILE_ASSISTANT_SECRET" "$REPO_DIR/.env.local" 2>/dev/null; then
     echo "" >> "$REPO_DIR/.env.local"
