@@ -23,8 +23,8 @@ SILERO_WHEEL_SHA256="7b7f5436cfcb02fae583a05b512ea96467fd449fe54cb49a5e4f06c51a1
 WAKE_MODEL_URL="https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin"
 WAKE_MODEL_SHA1="137c40403d78fd54d454da0f9bd998f78703390c"
 PIPER_VERSION="1.8.0"
-PIPER_VOICE="en_US-lessac-medium"
-PIPER_VOICE_SHA256="5efe09e69902187827af646e1a6e9d269dee769f9877d17b16b1b46eeaaf019f"
+PIPER_VOICE="en_US-ryan-medium"
+PIPER_VOICE_SHA256="abf4c274862564ed647ba0d2c47f8ee7c9b717d27bdad9219100eb310db4047a"
 
 echo "== Secptile assistant install =="
 
