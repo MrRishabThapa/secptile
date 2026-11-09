@@ -14,10 +14,10 @@ The daemon imports **nothing** from `src/` and `src/` imports nothing from
    (`127.0.0.1:8081`) transcribes it, and `wake.py` looks for the word at the
    start. You hear a chime. "Hey secptile" works too.
 2. Secptile greets you in its Piper voice and stays **awake**. While awake,
-   everything you say goes to the journal with no wake word, including side
+   everything you say goes to the Chat page with no wake word, including side
    conversations. If you said more after the wake word, it skips the greeting.
-3. Your turn goes through `/api/transcribe` (the accurate whisper model) to the
-   Chat page, which runs the journal. The app window opens if it isn't open.
+3. Short turns use the fast whisper server, and longer ones go through
+   `/api/transcribe`. The Chat page answers. The app window opens if needed.
 4. The Chat page sends its questions to `/api/assistant/speech`, and the daemon
    speaks them. Answer out loud with no wake phrase.
 5. **Talk over Secptile to interrupt it.** Playback stops and your words become
