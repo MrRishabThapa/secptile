@@ -53,8 +53,9 @@ chime = "~/.secptile/assistant/chime.wav"
 # in a title also matches your editor and terminals, and "close system" would
 # close them.
 match = ["brave-localhost"]
-# Executed via `hyprctl dispatch exec …` when no matching window exists.
-launch_command = "xdg-open http://localhost:3100"
+# Runs when no matching window exists. It must open an app window, because a
+# normal browser tab has a different class and would never match.
+launch_command = "brave --app=http://localhost:3100"
 
 [misc]
 # Touched by `secptile-mute`; presence fully stops the mic stream.
