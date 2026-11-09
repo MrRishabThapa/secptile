@@ -8,7 +8,7 @@ import { QuestionsStep } from "@/features/voice/components/questions-step";
 import { VoiceToggle } from "@/features/voice/components/voice-toggle";
 import { PastDays } from "@/features/days/components/past-days";
 import { WAKE_GREETING, detectWakePhrase } from "@/lib/journal/wake";
-import { cancelSpeech, speak } from "@/lib/voice/speaker";
+import { announceThroughDaemon, cancelSpeech, speak } from "@/lib/voice/speaker";
 import { callJournalStream, type ApiBody, type Draft } from "@/lib/journal/journal-client";
 
 type Step = "input" | "questions";
@@ -109,6 +109,7 @@ export default function ChatPage() {
     setSessionId(id);
     if (data.status === "ready" && data.draft) {
       stashHandoff(id, data.draft);
+      announceThroughDaemon("Your draft is ready in Today's Tea.");
       router.push("/tea");
       return;
     }
@@ -141,14 +142,16 @@ export default function ChatPage() {
    * text. Each cleanup silences speech when the utterance leaves the screen.
    */
   useEffect(() => {
-    if (greeting) void speak(WAKE_GREETING);
+    if (greeting) void speak(WAKE_GREETING, { expectReply: true });
     return cancelSpeech;
   }, [greeting]);
 
   const questionSpeech = questions.join(" ");
   useEffect(() => {
     if (step === "questions" && questionSpeech) {
-      void speak(`A few questions to complete the story. ${questionSpeech}`);
+      void speak(`A few questions to complete the story. ${questionSpeech}`, {
+        expectReply: true,
+      });
     }
     return cancelSpeech;
   }, [step, questionSpeech]);
@@ -203,18 +206,25 @@ export default function ChatPage() {
         </p>
       )}
 
+      {/*
+        Desktop assistant (Phase 6): a spoken turn starts the journal or answers
+        the open questions as one reply. Nothing is taken while a request runs,
+        and nothing here can publish.
+      */}
+      <div className="max-w-2xl">
+        <AssistantBar
+          onTranscript={
+            busy
+              ? undefined
+              : step === "input"
+                ? (text) => void startJournal({ transcript: text })
+                : (text) => void sendAnswers([text])
+          }
+        />
+      </div>
+
       {step === "input" && (
         <div className="max-w-2xl">
-          {/*
-            Desktop assistant (Phase 6): the onTranscript handover is only wired
-            on the idle input step — never mid-questions — so a spoken update
-            can never hijack an ongoing flow.
-          */}
-          <AssistantBar
-            onTranscript={
-              !busy ? (text) => void startJournal({ transcript: text }) : undefined
-            }
-          />
           <TranscriptForm
             busy={busy}
             transcript={transcript}
@@ -230,7 +240,7 @@ export default function ChatPage() {
             A few questions to complete the story:
           </p>
           <QuestionsStep
-            key={sessionId ?? "questions"}
+            key={`${sessionId ?? "questions"}:${questionSpeech}`}
             questions={questions}
             busy={busy}
             onSubmit={sendAnswers}
