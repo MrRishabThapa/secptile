@@ -62,6 +62,7 @@ class Config:
         self.barge_threshold = float(_get(data, "conversation.barge_threshold", 0.7))
         self.barge_min_seconds = float(_get(data, "conversation.barge_min_seconds", 0.24))
         self.follow_up_seconds = float(_get(data, "conversation.follow_up_seconds", 8.0))
+        self.awake_seconds = float(_get(data, "conversation.awake_seconds", 180.0))
         self.poll_seconds = float(_get(data, "conversation.poll_seconds", 0.4))
 
         self.chime = str(_get(data, "feedback.chime", ""))
