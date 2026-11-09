@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Mic, MicOff, Volume2 } from "lucide-react";
 
 type Status = { state: string; detail: string } | null;
 type Pending = { id: string; text: string } | null;
@@ -29,13 +28,6 @@ const STATE_LABEL: Record<string, string> = {
   stopped: "Stopped",
 };
 
-function StateIcon({ state }: { state: string }) {
-  const className = `h-3.5 w-3.5 shrink-0 ${stateText(state)}`;
-  if (state === "speaking") return <Volume2 aria-hidden className={className} />;
-  if (state === "muted" || state === "stopped") return <MicOff aria-hidden className={className} />;
-  return <Mic aria-hidden className={className} />;
-}
-
 function stateText(state: string): string {
   switch (state) {
     case "transcribing":
@@ -58,9 +50,9 @@ function dotClass(state: string): string {
 }
 
 /**
- * Voice-assistant status bar (Phase 6): live mic state from the daemon, and
- * the handover of spoken turns into the journal whenever the page is ready.
- * Renders nothing until the daemon first reports in.
+ * Voice-assistant status line (Phase 6) for the chat header: live mic state
+ * from the daemon, and the handover of spoken turns into the journal whenever
+ * the page is ready. Before the daemon reports in, it says the page is ready.
  */
 export function AssistantBar({ onTranscript }: Props) {
   const [payload, setPayload] = useState<Payload | null>(null);
@@ -131,32 +123,31 @@ export function AssistantBar({ onTranscript }: Props) {
 
   const status = payload?.status ?? null;
 
-  if (!status) return null; // daemon never ran — don't add UI noise
+  if (!status) {
+    return (
+      <p role="status" className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
+        <span aria-hidden className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
+        Ready
+      </p>
+    );
+  }
 
   return (
-    <div
+    <p
       role="status"
-      className="flex w-full items-center gap-2 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs dark:border-zinc-800 dark:bg-zinc-900"
+      className="flex min-w-0 items-center gap-1.5 text-xs"
       title={status.detail || undefined}
     >
-      <span
-        aria-hidden
-        className={`h-2 w-2 shrink-0 rounded-full ${dotClass(status.state)}`}
-      />
-      <StateIcon state={status.state} />
-      <span className={`font-medium ${stateText(status.state)}`}>
+      <span aria-hidden className={`h-1.5 w-1.5 shrink-0 rounded-full ${dotClass(status.state)}`} />
+      <span className={`shrink-0 ${stateText(status.state)}`}>
         {STATE_LABEL[status.state] ?? status.state}
       </span>
       {status.detail && (
-        <span className="truncate text-zinc-500 dark:text-zinc-400">
-          {status.detail}
-        </span>
+        <span className="truncate text-zinc-500 dark:text-zinc-400">{status.detail}</span>
       )}
       {pendingWaiting && (
-        <span className="shrink-0 text-amber-700 dark:text-amber-400">
-          — your spoken reply is next in line
-        </span>
+        <span className="truncate text-amber-700 dark:text-amber-400">your spoken reply is next in line</span>
       )}
-    </div>
+    </p>
   );
 }
