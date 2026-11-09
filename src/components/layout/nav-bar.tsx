@@ -30,11 +30,11 @@ export function NavBar() {
     <header className="sticky top-0 z-10 border-b border-zinc-200/70 bg-white/80 backdrop-blur dark:border-zinc-800/70 dark:bg-zinc-950/80">
       <nav
         aria-label="Main"
-        className="mx-auto flex w-full max-w-6xl items-center gap-2 px-6 py-3"
+        className="mx-auto flex w-full max-w-6xl items-center gap-2 overflow-x-auto px-4 py-3 sm:px-6"
       >
         <Link
           href="/"
-          className="mr-4 flex items-center gap-2 text-base font-semibold tracking-tight text-zinc-900 dark:text-zinc-50"
+          className="mr-4 flex shrink-0 items-center gap-2 text-base font-semibold tracking-tight text-zinc-900 dark:text-zinc-50"
         >
           <Image
             src={logo}
@@ -53,7 +53,7 @@ export function NavBar() {
               key={link.href}
               href={link.href}
               aria-current={active ? "page" : undefined}
-              className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
+              className={`shrink-0 whitespace-nowrap rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
                 active
                   ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
                   : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
