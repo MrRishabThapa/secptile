@@ -11,10 +11,10 @@ version = "0.1.0"
 description = "Secptile desktop voice assistant: wake word, VAD capture, intents, journal forward"
 requires-python = ">=3.11"
 dependencies = [
-    "livekit-wakeword>=0.2",   # Apache-2.0; WakeWordModel.predict ONNX runtime path
-    "sounddevice>=0.5",        # PortAudio via PipeWire; 16 kHz int16 recorder
-    "numpy>=1.26",             # audio frames for openWakeWord-style models
-    "httpx>=0.28",             # multipart transcribe + app posts
+    "livekit-wakeword>=0.2",   # Apache-2.0; only used when wake.engine = "model"
+    "onnxruntime>=1.16.1",     # runs the Silero speech detection model
+    "numpy>=1.26",             # audio frames
+    "httpx>=0.28",             # transcribe, speech streaming + app posts
 ]
 
 [build-system]
@@ -31,7 +31,9 @@ py-modules = [
     "config",
     "feedback",
     "intents",
+    "speaker",
     "transcribe",
+    "vad",
     "wake",
     "windowctl",
 ]
