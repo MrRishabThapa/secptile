@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
+import { publishEffortSupported, readEffort } from "@/lib/assistant";
 import { phaseSchema, type Phase } from "./schema";
 
 const MAX_BUFFER = 32 * 1024 * 1024; // 32 MB — streamed run events can be verbose
@@ -53,10 +54,9 @@ const PROMPT_RULES = [
  * - New loop: run creates the session and reports its ID in the output stream.
  * - Follow-ups: run with `--session <id>` continues the same conversation.
  */
-function buildRunArgs(input: JournalInput): string[] {
+function buildRunArgs(input: JournalInput, model: string | undefined): string[] {
   const args = ["run", "--format", "json"];
 
-  const model = process.env.OPENCODE_MODEL?.trim();
   if (model) args.push("--model", model);
 
   const serverUrl = process.env.OPENCODE_SERVER_URL?.trim();
@@ -207,19 +207,37 @@ function runBin(
   });
 }
 
+/** OpenCode's error when a model has no such effort level (verified on v2.0.32). */
+const VARIANT_UNAVAILABLE = "Variant unavailable";
+
+type RunOutput = Awaited<ReturnType<typeof runBin>>;
+
+/**
+ * Runs at the current effort level (`provider/model#high`). Not every model
+ * has effort levels, so a refusal falls back to the plain model and is
+ * recorded, which lets the UI say so instead of implying high mode is on.
+ */
+async function runAtCurrentEffort(run: (model: string | undefined) => Promise<RunOutput>): Promise<RunOutput> {
+  const model = process.env.OPENCODE_MODEL?.trim().split("#")[0];
+  if (!model) return run(undefined);
+  const output = await run(`${model}#${readEffort()}`);
+  const refused = output.stdout.includes(VARIANT_UNAVAILABLE);
+  publishEffortSupported(!refused);
+  return refused ? run(model) : output;
+}
+
 export async function runJournalPhase(
   input: JournalInput,
   onProgress?: (event: RunProgress) => void,
 ): Promise<{ sessionId: string; phase: Phase }> {
   const bin = process.env.OPENCODE_BIN?.trim() || "opencode";
   const cwd = await workspace();
-  const args = buildRunArgs(input);
   onProgress?.({ type: "started" });
 
   let announcedSession = false;
-  const output = await runBin(
+  const output = await runAtCurrentEffort((model) => runBin(
     bin,
-    args,
+    buildRunArgs(input, model),
     cwd,
     timeoutMs(),
     (line) => {
@@ -236,7 +254,7 @@ export async function runJournalPhase(
         /* not JSON — ignore line */
       }
     },
-  ).catch((error) => {
+  )).catch((error) => {
     const message = error instanceof Error ? error.message : String(error);
     throw new OpenCodeError(`Could not start '${bin}': ${message}`);
   });
@@ -296,16 +314,19 @@ export async function runOpenCodeText(
 ): Promise<{ sessionId: string; text: string }> {
   const bin = process.env.OPENCODE_BIN?.trim() || "opencode";
   const cwd = await workspace();
-  const args = ["run", "--format", "json"];
+  const buildArgs = (model: string | undefined) => {
+    const args = ["run", "--format", "json"];
+    if (model) args.push("--model", model);
+    const serverUrl = process.env.OPENCODE_SERVER_URL?.trim();
+    if (serverUrl) args.push("--server", serverUrl);
+    if (options.sessionId) args.push("--session", options.sessionId);
+    args.push(prompt);
+    return args;
+  };
 
-  const model = process.env.OPENCODE_MODEL?.trim();
-  if (model) args.push("--model", model);
-  const serverUrl = process.env.OPENCODE_SERVER_URL?.trim();
-  if (serverUrl) args.push("--server", serverUrl);
-  if (options.sessionId) args.push("--session", options.sessionId);
-  args.push(prompt);
-
-  const output = await runBin(bin, args, cwd, options.timeoutMs ?? 120_000).catch((error) => {
+  const output = await runAtCurrentEffort((model) =>
+    runBin(bin, buildArgs(model), cwd, options.timeoutMs ?? 120_000),
+  ).catch((error) => {
     const message = error instanceof Error ? error.message : String(error);
     throw new OpenCodeError(`Could not start '${bin}': ${message}`);
   });
