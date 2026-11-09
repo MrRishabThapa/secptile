@@ -7,7 +7,7 @@ base_url = "http://localhost:3100"
 transcribe_path = "/api/transcribe"          # Phase 2 whisper proxy, reused as-is
 status_path = "/api/assistant/status"        # daemon -> UI status events
 transcript_path = "/api/assistant/transcript" # journal forwards land here
-tts_path = "/api/tts"                        # Qwen speech, streamed through the app
+tts_path = "/api/tts"                        # local Piper speech, through the app
 # Shared secret required on every daemon request. Leave "" to read it from the
 # SECPTILE_ASSISTANT_SECRET environment variable instead (recommended).
 secret = ""
