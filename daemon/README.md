@@ -13,14 +13,32 @@ The daemon imports **nothing** from `src/` and `src/` imports nothing from
 1. Say **"secptile"**. Silero detects speech, a small local whisper server
    (`127.0.0.1:8081`) transcribes it, and `wake.py` looks for the word at the
    start. You hear a chime. "Hey secptile" works too.
-2. Secptile greets you in its Piper voice, then listens. If you said more after
-   the wake word, it skips the greeting and uses that instead.
+2. Secptile greets you in its Piper voice and stays **awake**. While awake,
+   everything you say goes to the journal with no wake word, including side
+   conversations. If you said more after the wake word, it skips the greeting.
 3. Your turn goes through `/api/transcribe` (the accurate whisper model) to the
    Chat page, which runs the journal. The app window opens if it isn't open.
 4. The Chat page sends its questions to `/api/assistant/speech`, and the daemon
    speaks them. Answer out loud with no wake phrase.
 5. **Talk over Secptile to interrupt it.** Playback stops and your words become
    your turn.
+6. Say **"kudos"** to put it to sleep. It also stops listening freely after
+   `awake_seconds` of quiet (3 minutes by default).
+
+| Say | What happens |
+| --- | --- |
+| "secptile" | Wakes it. Works in one breath too: "secptile, mega evolve" |
+| "kudos" | Puts it to sleep and returns OpenCode to medium |
+| "mega evolve" | Runs OpenCode in high mode until "kudos", or until the app restarts |
+| "open system" / "close system" | Opens or closes the app window |
+
+Commands must be your whole turn, so "kudos to my team for shipping" stays part
+of your day. While asleep, only the wake word is acted on.
+
+OpenCode effort comes from `OPENCODE_MODEL` plus `#medium` or `#high`. Not every
+model has these levels: the header shows "No effort levels" if yours doesn't,
+and runs continue on the plain model. High mode can also be toggled from the
+button in the chat header.
 
 Nothing here can publish. Approval stays a button click in the UI.
 
