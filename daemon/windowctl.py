@@ -1,19 +1,37 @@
 """
 Window control (Phase 6): Hyprland via `hyprctl`. Focus an existing window
 that matches the config (never spawn duplicates); launch only when none is
-open. All commands run locally through hyprctl's IPC socket — no shell
-injection surface (arguments are exec-form).
+open. Hyprland 0.56 dispatchers are Lua expressions, so every value is quoted
+through _lua_string before it reaches one.
 """
 from __future__ import annotations
 
 import asyncio
 import json
-import shlex
 from typing import Any
 
 
 class WindowError(RuntimeError):
     pass
+
+
+def _lua_string(value: str) -> str:
+    """JSON string quoting is valid Lua for these plain values."""
+    return json.dumps(value)
+
+
+def _window_selector(address: str) -> str:
+    return "{ window = " + _lua_string(f"address:{address}") + " }"
+
+
+async def _dispatch(expression: str) -> None:
+    result = await _run_hyprctl(["dispatch", expression])
+    if result != "ok":  # hyprctl exits 0 even when the expression fails
+        raise WindowError(f"hyprctl dispatch failed: {result[:200]}")
+
+
+async def _launch(command: str) -> None:
+    await _dispatch(f"hl.dsp.exec_cmd({_lua_string(command)})")
 
 
 async def _run_hyprctl(args: list[str]) -> str:
@@ -53,9 +71,9 @@ async def open_system(match: list[str], launch_command: str) -> str:
     """Focus or launch — the 'open system' intent."""
     address = await find_window(match)
     if address:
-        await _run_hyprctl(["dispatch", "focuswindow", f"address:{address}"])
+        await _dispatch(f"hl.dsp.focus({_window_selector(address)})")
         return "focused existing Secptile window"
-    await _run_hyprctl(["dispatch", "exec", f"sh -c {shlex.quote(launch_command)}"])
+    await _launch(launch_command)
     return "launched Secptile"
 
 
@@ -63,7 +81,7 @@ async def ensure_open(match: list[str], launch_command: str) -> str:
     """Launch only if nothing is open. Never steals focus from your work."""
     if await find_window(match):
         return "Secptile window already open"
-    await _run_hyprctl(["dispatch", "exec", f"sh -c {shlex.quote(launch_command)}"])
+    await _launch(launch_command)
     return "launched Secptile"
 
 
@@ -71,5 +89,5 @@ async def close_system(match: list[str]) -> str:
     address = await find_window(match)
     if not address:
         return "no Secptile window open"
-    await _run_hyprctl(["dispatch", "closewindow", f"address:{address}"])
+    await _dispatch(f"hl.dsp.window.close({_window_selector(address)})")
     return "closed Secptile window"
