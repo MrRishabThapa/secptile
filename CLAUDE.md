@@ -57,6 +57,7 @@ without approval. A later phase adds an always-on desktop voice assistant
   first, then OpenCode choosing from a fixed action list. Lookups only read, and mail or comment
   text never goes to a model. A blog starts only when asked for. Sending, publishing and
   approving stay a click on their own pages.
+- **Desktop widget:** `daemon/widget/` (Quickshell, wallpaper layer) animates the owner's Braille art from `/api/assistant/status`. The art stays in `~/.secptile/widget/`, not this repo.
 - Not yet started: Phase 8 (polish, accessibility).
 
 ## What to do next (in this order)
