@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { LocalClock } from "@/features/clock/components/local-clock";
 import { TimerCard } from "@/features/clock/components/timer-card";
 import { StopwatchCard } from "@/features/clock/components/stopwatch-card";
@@ -19,8 +20,11 @@ const TABS: { id: ClockTab; label: string }[] = [
  * preserved) so a running timer or stopwatch keeps going when you glance
  * elsewhere on this page.
  */
-export default function ClockPage() {
-  const [tab, setTab] = useState<ClockTab>("clock");
+function ClockContent() {
+  const params = useSearchParams();
+  // "/clock?timer=5" comes from Secptile: "set a timer for 5 minutes".
+  const timerMinutes = Number(params.get("timer")) || undefined;
+  const [tab, setTab] = useState<ClockTab>(timerMinutes ? "timer" : "clock");
 
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 px-6 py-10 font-sans">
@@ -58,11 +62,19 @@ export default function ClockPage() {
         <LocalClock />
       </div>
       <div className={tab === "timer" ? "mx-auto w-full max-w-lg" : "hidden"}>
-        <TimerCard />
+        <TimerCard key={timerMinutes ?? "manual"} autoStartMinutes={timerMinutes} />
       </div>
       <div className={tab === "stopwatch" ? "mx-auto w-full max-w-lg" : "hidden"}>
         <StopwatchCard />
       </div>
     </main>
+  );
+}
+
+export default function ClockPage() {
+  return (
+    <Suspense>
+      <ClockContent />
+    </Suspense>
   );
 }

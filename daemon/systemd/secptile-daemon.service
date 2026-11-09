@@ -1,8 +1,8 @@
 [Unit]
 Description=Secptile desktop assistant (wake word daemon)
-After=secptile-app.service secptile-whisper-wake.service secptile-echo-cancel.service pipewire.service wireplumber.service
+After=secptile-app.service secptile-tts.service secptile-whisper-wake.service secptile-echo-cancel.service pipewire.service wireplumber.service
 Requires=secptile-app.service
-Wants=secptile-whisper-wake.service secptile-echo-cancel.service
+Wants=secptile-tts.service secptile-whisper-wake.service secptile-echo-cancel.service
 
 [Service]
 Type=simple

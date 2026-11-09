@@ -1,15 +1,16 @@
 """
 Secptile desktop assistant — the main loop (Phase 6).
 
-Flow: wake phrase -> greeting in Qwen's voice -> your turn -> journal in the
-app -> Secptile speaks its questions -> your turn, with no wake phrase needed.
-Start talking while Secptile speaks and it stops to listen.
+Flow: "secptile" wakes it -> spoken greeting -> while awake, everything you say
+goes to the Chat page with no wake word -> "kudos" puts it back to sleep. It also
+falls asleep after a few quiet minutes. "mega evolve" runs OpenCode in high mode
+until "kudos". Start talking while Secptile speaks and it stops to listen.
 
 Privacy model:
 - while waiting, audio stays in memory; only speech goes to the local whisper
   wake server, and nothing is stored;
 - the mic process is ended whenever the mute flag file exists;
-- only Secptile's reply text leaves the machine (to Qwen, through the app);
+- Secptile's voice is generated locally by Piper;
 - nothing here can publish: the transcript enters the normal journal flow, and
   approval stays a button click in the UI (AGENTS.md hard rule 1).
 
@@ -40,12 +41,16 @@ from vad import SileroVad
 LOG = logging.getLogger("secptile-assistant")
 
 WAKE_GREETING = "welcome boss, how was your day?"
+EFFORT_PATH = "/api/assistant/effort"
+SHORT_TURN_SECONDS = 5.0  # up to this much speech fits the fast whisper server
+SHORT_TURN_TAIL_SECONDS = 0.3  # silence kept after the words for that server
 HEARTBEAT_SECONDS = 5.0
 STALE_SPEECH_MS = 30_000
 MUTE_CHECK_SECONDS = 0.25
 MIC_RETRY_SECONDS = 2.0
 BARGE_POLL_SECONDS = 0.1
 HELD_STATES = ("sent", "error")
+IDLE_STATES = ("listening", "sleeping", "conversing")
 STATUS_HOLD_SECONDS = 5.0
 
 
@@ -78,6 +83,9 @@ class Assistant:
         self._state = ""
         self._detail = ""
         self._status_hold_until = 0.0
+        self.awake = False  # "secptile" until "kudos": no wake word needed
+        self.slept = False  # "kudos" was said: stay quiet until the next wake
+        self._last_activity = 0.0
         self._queued_speech: SpeechRequest | None = None
         self._seen_speech_id = ""
         self._server_speech_id: str | None = None
@@ -100,7 +108,7 @@ class Assistant:
 
     async def status(self, state: str, detail: str = "") -> None:
         now = asyncio.get_running_loop().time()
-        if state == "listening" and now < self._status_hold_until:
+        if state in IDLE_STATES and now < self._status_hold_until:
             return  # keep "sent" or an error on screen long enough to read
         if (state, detail) == (self._state, self._detail):
             return
@@ -108,6 +116,11 @@ class Assistant:
             self._status_hold_until = now + STATUS_HOLD_SECONDS
         self._state, self._detail = state, detail
         await self._publish_status()
+
+    def _idle_state(self) -> str:
+        if self.awake:
+            return "conversing"
+        return "sleeping" if self.slept else "listening"
 
     async def _publish_status(self) -> None:
         if self._state:
@@ -174,6 +187,19 @@ class Assistant:
     async def transcribe_turn(self, audio: np.ndarray) -> str | None:
         await self.status("transcribing")
         try:
+            # Short turns go to the wake server: under a second, and it knows
+            # the spoken commands. Every clip also holds the lead-in and the
+            # pause that ended your turn.
+            padding = self.cfg.lead_in_seconds + self.cfg.end_of_turn_seconds
+            if audio.size <= (SHORT_TURN_SECONDS + padding) * self.cfg.sample_rate:
+                # Long trailing silence made whisper retry for 6 s, so trim the pause.
+                pause = max(0.0, self.cfg.end_of_turn_seconds - SHORT_TURN_TAIL_SECONDS)
+                heard = await transcribe.spot(
+                    self.client, audio[: audio.size - int(pause * self.cfg.sample_rate)],
+                    self.cfg.sample_rate, self.cfg.wake_whisper_url,
+                )
+                if heard:
+                    return heard
             return await transcribe.transcribe(
                 self.client, audio, self.cfg.sample_rate,
                 self.cfg.app_base_url, self.cfg.transcribe_path,
@@ -234,13 +260,14 @@ class Assistant:
         """Speaks, then handles an interruption or a spoken reply."""
         await self.status("speaking")
         interrupted = await self.speak_until_interrupted(text, speech_id)
+        self._last_activity = asyncio.get_running_loop().time()
         if self._speech_withdrawn(speech_id):
-            await self.status("listening")
+            await self.status(self._idle_state())
             return
         if interrupted is not None:
             await self.status("conversing", "listening to you")
             audio = await self.record_turn(seed=interrupted)
-        elif expect_reply:
+        elif expect_reply and not self.awake:
             await self.status("conversing", "your turn")
             self.mic.drain()
             self.vad.reset()
@@ -252,7 +279,7 @@ class Assistant:
             if text_heard:
                 await self.dispatch(text_heard)
                 return
-        await self.status("listening")
+        await self.status(self._idle_state())
 
     # --- intents ------------------------------------------------------------
 
@@ -263,9 +290,30 @@ class Assistant:
             LOG.warning("window control failed: %s", cause)
             return f"window control failed: {cause}"
 
+    async def set_effort(self, effort: str) -> bool:
+        return await self.post_json(EFFORT_PATH, {"effort": effort})
+
+    async def go_to_sleep(self) -> None:
+        self.awake = False
+        self.slept = True
+        self._queued_speech = None
+        await self.set_effort("medium")
+        await self.say("Going to sleep.", expect_reply=False)
+        await self.status(self._idle_state())
+        LOG.info("asleep")
+
     async def dispatch(self, text: str) -> None:
         intent = intents.parse(text)
-        if intent.action == "open_system":
+        if intent.action == "sleep":
+            await self.go_to_sleep()
+        elif intent.action == "mega_evolve":
+            evolved = await self.set_effort("high")
+            LOG.info("mega evolve: %s", "on" if evolved else "failed")
+            await self.say(
+                "Mega evolved. High mode on." if evolved else "I couldn't reach the app.",
+                expect_reply=False,
+            )
+        elif intent.action == "open_system":
             result = await self.run_window_command(windowctl.open_system, self.cfg.launch_command)
             await self.status("sent", result)
             await self.say("Opening Secptile.", expect_reply=False)
@@ -286,7 +334,10 @@ class Assistant:
                 await self.status("error", "could not reach the app")
 
     async def on_wake(self, remainder: str, seed: list[np.ndarray] | None = None) -> None:
-        LOG.info("wake phrase detected")
+        LOG.info("wake word detected")
+        self.awake = True
+        self.slept = False
+        self._last_activity = asyncio.get_running_loop().time()
         await feedback.play_chime(self.cfg.chime)
         if seed is not None:
             # The clip hit the wake length limit while you were still talking.
@@ -301,59 +352,84 @@ class Assistant:
 
     # --- waiting for the wake phrase ----------------------------------------
 
-    def _new_wake_endpointer(self) -> capture.Endpointer:
+    def _new_endpointer(self) -> capture.Endpointer:
+        """Awake: a whole spoken turn. Asleep: a short clip to check for the wake word."""
         return capture.Endpointer(
             self.cfg.vad_threshold,
             self.cfg.lead_in_seconds,
-            self.cfg.wake_end_seconds,
-            self.cfg.wake_max_seconds,
+            self.cfg.end_of_turn_seconds if self.awake else self.cfg.wake_end_seconds,
+            self.cfg.max_seconds if self.awake else self.cfg.wake_max_seconds,
         )
 
+    def _reset_listening(self) -> capture.Endpointer:
+        """After handling a turn. Transcribing is slow, so the quiet timer restarts here."""
+        self._last_activity = asyncio.get_running_loop().time()
+        self.mic.drain()
+        self.vad.reset()
+        return self._new_endpointer()
+
     async def listen_loop(self) -> None:
-        endpointer = self._new_wake_endpointer()
+        endpointer = self._new_endpointer()
         skip_until_quiet = False
         quiet_frames = 0
         end_frames = max(1, round(self.cfg.wake_end_seconds / capture.HOP_SECONDS))
         while True:
             frame = await self.next_frame()
+            now = asyncio.get_running_loop().time()
 
-            speech, self._queued_speech = self._queued_speech, None
-            if speech is not None:
-                await self.say(speech.text, speech.expect_reply, speech.id)
-                self.mic.drain()
-                self.vad.reset()
-                endpointer = self._new_wake_endpointer()
-                skip_until_quiet = False
-                continue
-            await self.status("listening")
+            # Speech waits while you are mid-sentence, so it never talks over you.
+            if not endpointer.started:
+                speech, self._queued_speech = self._queued_speech, None
+                if speech is not None and not self.slept:
+                    await self.say(speech.text, speech.expect_reply, speech.id)
+                    endpointer = self._reset_listening()
+                    skip_until_quiet = False
+                    continue
+                if self.awake and now - self._last_activity >= self.cfg.awake_seconds:
+                    LOG.info("quiet for a while, back to waiting for the wake word")
+                    self.awake = False
+                    endpointer = self._new_endpointer()
+            await self.status(self._idle_state())
 
-            if self.watcher is not None:
+            if self.watcher is not None and not self.awake:
                 if self.watcher.fired(frame):
                     await self.on_wake("")
-                    self.mic.drain()
+                    endpointer = self._reset_listening()
                 continue
 
             score = self.vad.probability(frame)
             if skip_until_quiet:
-                # Long speech without the wake phrase: don't keep transcribing it.
+                # Long speech without the wake word: don't keep transcribing it.
                 quiet_frames = quiet_frames + 1 if score < self.cfg.vad_threshold else 0
                 skip_until_quiet = quiet_frames < end_frames
                 continue
 
             result = endpointer.push(frame, score)
+            if endpointer.started:
+                self._last_activity = now
             if result is None:
                 continue
+
+            if self.awake:
+                heard = await self.transcribe_turn(endpointer.audio())
+                if heard:
+                    await self.dispatch(heard)
+                endpointer = self._reset_listening()
+                continue
+
             clip_frames = endpointer.frames()
             heard = await transcribe.spot(
                 self.client, endpointer.audio(), self.cfg.sample_rate, self.cfg.wake_whisper_url,
             )
-            endpointer = self._new_wake_endpointer()
             match = wake.match_wake(heard)
+            if self.cfg.wake_log_heard:
+                LOG.info("wake check heard %r (match: %s)", heard, match is not None)
             if match is not None:
                 await self.on_wake(match.remainder, clip_frames if result == "max" else None)
-                self.mic.drain()
-                self.vad.reset()
-            elif result == "max":
+                endpointer = self._reset_listening()
+                continue
+            endpointer = self._new_endpointer()
+            if result == "max":
                 skip_until_quiet, quiet_frames = True, 0
 
     async def _resolve_source(self) -> str:
@@ -386,7 +462,7 @@ class Assistant:
                     await self.mic.start(await self._resolve_source())
                     self.vad.reset()
                     LOG.info("mic open, listening")
-                await self.status("listening")
+                await self.status(self._idle_state())
                 try:
                     await self.listen_loop()
                 except Muted:
@@ -419,4 +495,5 @@ async def main() -> None:
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+    logging.getLogger("httpx").setLevel(logging.WARNING)  # polls several times a second
     asyncio.run(main())

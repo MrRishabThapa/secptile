@@ -7,7 +7,7 @@ base_url = "http://localhost:3100"
 transcribe_path = "/api/transcribe"          # Phase 2 whisper proxy, reused as-is
 status_path = "/api/assistant/status"        # daemon -> UI status events
 transcript_path = "/api/assistant/transcript" # journal forwards land here
-tts_path = "/api/tts"                        # Qwen speech, streamed through the app
+tts_path = "/api/tts"                        # local Piper speech, through the app
 # Shared secret required on every daemon request. Leave "" to read it from the
 # SECPTILE_ASSISTANT_SECRET environment variable instead (recommended).
 secret = ""
@@ -20,6 +20,8 @@ engine = "whisper"
 whisper_url = "http://127.0.0.1:8081"        # secptile-whisper-wake.service
 max_seconds = 4.0                            # longest clip checked for the phrase
 end_seconds = 0.5                            # pause that ends a wake check
+# Debugging only: writes everything the wake check hears to the system journal.
+log_heard = false
 # Only used by engine = "model":
 models = [
     "~/.secptile/assistant/models/hey-secptile.onnx",
@@ -35,13 +37,14 @@ vad_model = "~/.secptile/assistant/models/silero_vad.onnx"
 vad_threshold = 0.5          # speech score from 0 to 1
 max_seconds = 300            # hard stop even if you keep talking
 lead_in_seconds = 0.6        # audio kept from just before speech starts
-end_of_turn_seconds = 2.0    # pause that means you've finished your turn
+end_of_turn_seconds = 1.5    # pause that means you've finished your turn
 
 [conversation]
 barge_in = true              # talk over Secptile to interrupt it
 barge_threshold = 0.7        # raise this if speakers cause false interruptions
 barge_min_seconds = 0.24     # how long you must talk before it stops
 follow_up_seconds = 8.0      # how long it waits for an answer without a wake phrase
+awake_seconds = 180          # falls asleep after this long with nobody talking
 poll_seconds = 0.4           # how often it checks the app for text to speak
 
 [feedback]

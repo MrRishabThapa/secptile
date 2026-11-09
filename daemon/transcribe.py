@@ -14,9 +14,12 @@ import wave
 import httpx
 import numpy as np
 
-# Biases whisper toward the brand words. Do not add "hey" here: a prompt like
-# "Hey Secp" made it hear "hey there, pass the salt" as "Hey Secp, pass...".
-WAKE_PROMPT = "Secp. Secptile."
+# Teaches whisper the spoken commands. This exact wording was picked by testing:
+# "Secp. Secptile." made it hear "september" and "subtle" as the wake word, leaving
+# the commands out made it hear "Cue Dose" and "Mega Revolve", and ending on
+# "Mega evolve." sent it into a 7 s repetition loop on that phrase. Re-test
+# false wakes and timing before changing it.
+WAKE_PROMPT = "Mega evolve. Kudos. Talking to Secptile."
 NON_SPEECH = re.compile(r"[\[(][^\])]*[\])]")
 
 

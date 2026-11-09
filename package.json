@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "node --test src/lib/secptile/classify.test.mjs"
   },
   "dependencies": {
     "dompurify": "^3.4.17",

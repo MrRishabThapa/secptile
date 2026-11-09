@@ -1,0 +1,15 @@
+[Unit]
+Description=Secptile voice (local Piper speech server, localhost only)
+After=default.target
+
+[Service]
+Type=simple
+# Voice files live in local-tts/, which is ignored by git.
+# NOTE: install.sh rewrites these two lines to your repo checkout if needed.
+WorkingDirectory=%h/Projects/secptile/local-tts
+ExecStart=%h/Projects/secptile/local-tts/.venv/bin/python -m piper.http_server -m en_US-ryan-medium --data-dir voices --host 127.0.0.1 --port 8082
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target

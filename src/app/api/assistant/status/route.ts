@@ -4,6 +4,8 @@ import { z } from "zod";
 import {
   daemonAuthorized,
   publishStatus,
+  readEffort,
+  readEffortSupported,
   readPendingTranscript,
   readSpeech,
   readStatus,
@@ -26,6 +28,8 @@ export async function GET() {
     pending: readPendingTranscript(),
     // The age lets a restarted daemon skip speech it should no longer say.
     speech: speech && { ...speech, ageMs: Date.now() - Date.parse(speech.at) },
+    effort: readEffort(),
+    effortSupported: readEffortSupported(),
   });
 }
 

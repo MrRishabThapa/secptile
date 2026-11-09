@@ -1,8 +1,9 @@
 """
-Wake phrase detection (Phase 6). Two engines, chosen by [wake] engine:
+Wake word detection (Phase 6). The wake word is "secptile". Two engines, chosen
+by [wake] engine:
 
 - "whisper" (default): Silero finds speech, a small local whisper model
-  transcribes it, and match_wake() looks for the phrase at the start.
+  transcribes it, and match_wake() looks for the word at the start.
 - "model": a trained livekit-wakeword .onnx model scores every frame. Training
   needs a CUDA GPU or Apple silicon, so the import stays inside the class.
 
@@ -13,20 +14,19 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-GREETING_WORDS = {"hey", "hay", "hei", "heh", "hi", "ey", "k"}
-SHORT_NAME = "secp"
-FULL_NAME = "secptile"
-SHORT_NAME_TOLERANCE = 1  # "sec", "sep"
-FULL_NAME_TOLERANCE = 3  # "sectile", "septile"
-JOINED_NAME_TOLERANCE = 2  # "sep tile" read as two words
-SPLIT_NAME_ENDING = re.compile(r"^[^a-z]*(tile|tyle|tylia|tylo|tie light)\b", re.IGNORECASE)
-WAKE_COMMAND_ENDING = re.compile(r"^(?:.{0,24}\b)?(?:i am|i'm|im) here[.!?]*$", re.IGNORECASE)
+WAKE_WORD = "secptile"
+OPTIONAL_LEAD_IN = {"hey", "hay", "hi"}
+# One word is easy to hit by accident, so a near match must also sound the same
+# at the start: this accepts "septile" and "sectile" but not "reptile".
+FIRST_LETTERS = ("s", "z")
+WAKE_TOLERANCE = 2
+WAKE_COMMAND_ENDING = re.compile(r"^(?:i am|i'm|im) here[.!?]*$", re.IGNORECASE)
 WORD = re.compile(r"[a-z0-9']+", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
 class WakeMatch:
-    remainder: str  # what was said after the wake phrase
+    remainder: str  # what was said after the wake word
 
 
 def _distance(a: str, b: str) -> int:
@@ -43,31 +43,30 @@ def _distance(a: str, b: str) -> int:
     return previous[-1]
 
 
+def _sounds_like_wake_word(word: str) -> bool:
+    return word.startswith(FIRST_LETTERS) and _distance(word, WAKE_WORD) <= WAKE_TOLERANCE
+
+
 def _clean_remainder(text: str) -> str:
-    """Drops the rest of a split name and the "i am here" wake command."""
-    remainder = text.lstrip(" ,.!?;:-")
-    remainder = SPLIT_NAME_ENDING.sub("", remainder).lstrip(" ,.!?;:-")
-    if WAKE_COMMAND_ENDING.match(remainder):
-        return ""
-    return remainder.strip()
+    remainder = text.lstrip(" ,.!?;:-").strip()
+    return "" if WAKE_COMMAND_ENDING.match(remainder) else remainder
 
 
 def match_wake(transcript: str) -> WakeMatch | None:
-    """Matches "hey secp" or "hey secptile" at the start of a transcript."""
+    """Matches the wake word as the first word of a transcript."""
     words = list(WORD.finditer(transcript))
-    if len(words) < 2 or words[0].group().lower() not in GREETING_WORDS:
+    if words and words[0].group().lower() in OPTIONAL_LEAD_IN:
+        words = words[1:]
+    if not words:
         return None
-    first = words[1].group().lower()
-    if len(words) > 2:
-        joined = first + words[2].group().lower()
-        joined_distance = _distance(joined, FULL_NAME)
-        # Must beat the first word alone, or "Secptile, I" would swallow the "I".
-        if joined_distance <= JOINED_NAME_TOLERANCE and joined_distance < _distance(first, FULL_NAME):
-            return WakeMatch(_clean_remainder(transcript[words[2].end():]))
-    is_short_name = len(first) >= 3 and _distance(first, SHORT_NAME) <= SHORT_NAME_TOLERANCE
-    is_full_name = _distance(first, FULL_NAME) <= FULL_NAME_TOLERANCE
-    if is_short_name or is_full_name:
-        return WakeMatch(_clean_remainder(transcript[words[1].end():]))
+    first = words[0].group().lower()
+    if len(words) > 1:
+        # Whisper sometimes splits the word: "Sep tile", "Sec, tile".
+        joined = first + words[1].group().lower()
+        if _sounds_like_wake_word(joined) and _distance(joined, WAKE_WORD) < _distance(first, WAKE_WORD):
+            return WakeMatch(_clean_remainder(transcript[words[1].end():]))
+    if _sounds_like_wake_word(first):
+        return WakeMatch(_clean_remainder(transcript[words[0].end():]))
     return None
 
 

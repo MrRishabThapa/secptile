@@ -46,6 +46,7 @@ class Config:
         self.wake_whisper_url = str(_get(data, "wake.whisper_url", "http://127.0.0.1:8081"))
         self.wake_max_seconds = float(_get(data, "wake.max_seconds", 4.0))
         self.wake_end_seconds = float(_get(data, "wake.end_seconds", 0.5))
+        self.wake_log_heard = bool(_get(data, "wake.log_heard", False))
         self.wake_models = [str(m) for m in _get(data, "wake.models", [])]
         self.wake_threshold = float(_get(data, "wake.threshold", 0.5))
 
@@ -55,12 +56,13 @@ class Config:
         self.vad_threshold = float(_get(data, "capture.vad_threshold", 0.5))
         self.max_seconds = float(_get(data, "capture.max_seconds", 300))
         self.lead_in_seconds = float(_get(data, "capture.lead_in_seconds", 0.6))
-        self.end_of_turn_seconds = float(_get(data, "capture.end_of_turn_seconds", 2.0))
+        self.end_of_turn_seconds = float(_get(data, "capture.end_of_turn_seconds", 1.5))
 
         self.barge_in = bool(_get(data, "conversation.barge_in", True))
         self.barge_threshold = float(_get(data, "conversation.barge_threshold", 0.7))
         self.barge_min_seconds = float(_get(data, "conversation.barge_min_seconds", 0.24))
         self.follow_up_seconds = float(_get(data, "conversation.follow_up_seconds", 8.0))
+        self.awake_seconds = float(_get(data, "conversation.awake_seconds", 180.0))
         self.poll_seconds = float(_get(data, "conversation.poll_seconds", 0.4))
 
         self.chime = str(_get(data, "feedback.chime", ""))

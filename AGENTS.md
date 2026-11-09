@@ -63,7 +63,7 @@ Work **one phase at a time**. At the end of each phase, stop, summarize what was
 - **Phase 3: Draft editor + approval.** Editable draft, LinkedIn-style preview, Approve / Edit / "Regenerate with note" actions. Nothing is published yet.
 - **Phase 4: Blog publishing.** Approved posts saved into the local SQLite blog DB (`~/.secptile/blog/blog.db`, `node:sqlite`) with a **mandatory cover photo** (`/api/photos` upload, JPEG/PNG/GIF ≤ 8 MB). No repos, no commits, no pushes.
 - **Phase 5: LinkedIn publishing.** OAuth flow, token storage and refresh handling (tokens expire roughly every 60 days), post creation with the optional cover photo attached (Images API), only after approval.
-- **Phase 6: Desktop voice assistant.** Always-on local wake-word daemon ("hey secptile" / "hey secp"), voice commands ("open system", "close system"), voice-driven daily updates into the journal flow, systemd --user services, privacy controls (mute, mic indicator).
+- **Phase 6: Desktop voice assistant.** Always-on local wake-word daemon (wake word "secptile", sleep word "kudos"), voice commands ("open system", "close system", "mega evolve" for high-effort OpenCode; medium is the default), voice-driven daily updates into the journal flow, systemd --user services, privacy controls (mute, mic indicator).
 - **Phase 7a: E-mail — Accounts + unified inbox (read-only).** Connect Gmail and Zoho Mail via OAuth (read-only scopes only); one unified inbox list with account switcher, search, pagination, polling refresh.
 - **Phase 7b: E-mail — Message view.** Full message view: headers, sanitized body in a sandboxed iframe, attachments (download on click, streamed server-side), Gmail thread view.
 - **Phase 7c: E-mail — AI helpers.** OpenCode-assisted summaries/draft suggestions for mail, with strict untrusted-content boundaries.
@@ -73,7 +73,7 @@ Work **one phase at a time**. At the end of each phase, stop, summarize what was
 
 ## 6. Hard rules
 
-1. **Never publish anything without explicit user approval in the UI.** No auto-posting, no exceptions.
+1. **Never publish anything without explicit user approval in the UI.** No auto-posting. The owner made one exception: a Kartabya channel message may also be approved by voice, after Secptile reads back the channel and exact text and hears a clear "yes" as the whole turn.
 2. No secrets in the repo. No tokens in client-side code.
 3. Do not invent API endpoints or SDK methods. Verify against current docs, or ask.
 4. Keep changes small and reviewable. Prefer simple code over clever code.
@@ -100,6 +100,8 @@ After each phase: list the files created (in commit order), how to run and test 
 ## 9. Project specifics
 
 - Project name: **Secptile**.
+- **Chat is Secptile's assistant for the whole app:** it answers from every section and opens any page. The blog flow starts only when the owner asks for it. It only reads: sending, publishing, approving and deleting stay an explicit click on that section's page (hard rule 1), and other people's text (mail, comments) is never sent to a model.
+- **Kartabya:** the app connects directly to Kartabya's MCP server (`src/lib/kartabya/`), with no model in between, so team messages never reach a model. OpenCode is not connected to it. Reads are free; posting follows the read-back rule above.
 - UI structure: a shared navbar (`src/components/nav-bar.tsx`) anchors the pages — **"Chat"** (`/`, voice journaling; **this is the page the app opens on**), **"Today's Tea"** (`/tea`, blog editor + LinkedIn share), **"Clock"** (`/clock`, timer, stopwatch and the local-time wall clock), **"Tracker"** (`/tracker`, filtered history of every post published through Secptile with views analytics) plus **"Feedback"** (`/feedback`, pending blog-comment review). The draft is handed from Chat to Today's Tea via sessionStorage when the story is complete; a Past-days row click opens the day in Tea for publish/verify, double-click offers removal. Built to grow: new surfaces get their own navbar entry. No emoji in the UI — use lucide icons.
 - **Tracker:** `/tracker` lists every post (blog + LinkedIn) stored in the local SQLite blog DB with a date-range filter, search, and blog-vs-LinkedIn type filter. Opening a row (`/tracker/[id]`) shows the full thread: cover photo, body, LinkedIn text, tags, and a views counter (incremented on cover fetch and thread open) plus LinkedIn post date/URN. Each row can be removed (two-click confirm), and a "Clean up duplicates" button removes duplicate records, keeping the newest per day.
 - Initialization (wake) voice command: **"hey secptile i am here"** (implemented with voice in Phase 2; detectable in transcript text from then on).

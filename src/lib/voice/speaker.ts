@@ -1,6 +1,6 @@
 /**
  * Secptile's voice in the browser: fetches speech from /api/tts
- * (Qwen3-TTS-Flash through the app's own proxy) and plays it via WebAudio.
+ * (local Piper through the app's own route) and plays it via WebAudio.
  *
  * One utterance at a time — a new speak() cancels whatever was playing.
  * Muting persists in localStorage, and subscribers (e.g. the mute toggle)
