@@ -10,11 +10,11 @@ The daemon imports **nothing** from `src/` and `src/` imports nothing from
 
 ## How a conversation works
 
-1. Say **"hey secp"** or **"hey secptile"**. Silero detects speech, a small
-   local whisper server (`127.0.0.1:8081`) transcribes it, and `wake.py` looks
-   for the phrase at the start. You hear a chime.
+1. Say **"secptile"**. Silero detects speech, a small local whisper server
+   (`127.0.0.1:8081`) transcribes it, and `wake.py` looks for the word at the
+   start. You hear a chime. "Hey secptile" works too.
 2. Secptile greets you in its Piper voice, then listens. If you said more after
-   the wake phrase, it skips the greeting and uses that instead.
+   the wake word, it skips the greeting and uses that instead.
 3. Your turn goes through `/api/transcribe` (the accurate whisper model) to the
    Chat page, which runs the journal. The app window opens if it isn't open.
 4. The Chat page sends its questions to `/api/assistant/speech`, and the daemon
@@ -29,7 +29,7 @@ When the daemon is off or muted, the Chat page speaks through the browser.
 The Chat page must be open on `/` for the journal to run. Spoken turns wait
 there for up to 10 minutes if another page is showing.
 
-Voice commands ("hey secp, open system" / "close system") control the app
+Voice commands ("secptile, open system" / "secptile, close system") control the app
 window through `windowctl.py`. The window is matched by class, never by title.
 
 ## Layout
