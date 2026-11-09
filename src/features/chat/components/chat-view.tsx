@@ -30,7 +30,7 @@ const QUESTIONS_INTRO = "A few questions to complete the story:";
 const DRAFT_READY = "Your draft is ready in Today's Tea.";
 
 const WELCOME =
-  "What can I do for you? Ask about your mail, posts, comments or updates, open any section, or say \u201cwrite a blog\u201d to turn your day into a post.";
+  "What can I do for you? Ask about your mail, posts, Kartabya messages or tasks, open any section, or say \u201cwrite a blog\u201d to turn your day into a post.";
 
 const savedChatSchema = z.object({
   sessionId: z.string().nullable(),
@@ -133,6 +133,8 @@ export function ChatView() {
   const [collecting, setCollecting] = useState(initial.collecting);
   /** OpenCode's memory of general questions, separate from any blog. */
   const [chatSessionId, setChatSessionId] = useState<string | null>(initial.chatSessionId);
+  /** A Kartabya message was read back and waits for yes or no. Never saved. */
+  const [pendingSend, setPendingSend] = useState<{ id: string; messageId: string } | null>(null);
   const [draftText, setDraftText] = useState("");
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<string | null>(null);
@@ -214,7 +216,9 @@ export function ChatView() {
         text,
         mode: sessionId ? "session" : collecting ? "collecting" : "idle",
         chatSessionId: chatSessionId ?? undefined,
+        pendingSendId: pendingSend?.id,
       });
+      setPendingSend(null);
       if (result.kind === "journal") {
         await runJournal(text, options.privateNotes);
       } else if (result.kind === "start_blog") {
@@ -224,6 +228,11 @@ export function ChatView() {
           setCollecting(true);
           say(result.text);
         }
+      } else if (result.kind === "confirm_send") {
+        const readBack = newMessage({ role: "assistant", text: result.text });
+        append(readBack);
+        setPendingSend({ id: result.pendingSendId, messageId: readBack.id });
+        void speak(result.text, { expectReply: true });
       } else if (result.kind === "cancel_blog") {
         setCollecting(false);
         setSessionId(null);
@@ -333,7 +342,18 @@ export function ChatView() {
             }}
           />
           {messages.map((message) => (
-            <ChatMessage key={message.id} message={message} />
+            <ChatMessage
+              key={message.id}
+              message={message}
+              confirm={
+                pendingSend?.messageId === message.id && !busy
+                  ? {
+                      onSend: () => void sendTurn("Yes"),
+                      onCancel: () => void sendTurn("Cancel"),
+                    }
+                  : undefined
+              }
+            />
           ))}
           {busy && <ThinkingBubble progress={progress} />}
         </div>
