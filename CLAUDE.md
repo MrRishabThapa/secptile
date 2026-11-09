@@ -14,7 +14,7 @@ story is complete, then shows a draft with a LinkedIn preview. Only after **expl
 approval in the UI** does it save to a local SQLite blog DB (mandatory cover photo) and,
 optionally, publish to LinkedIn via the official API. Nothing is ever published
 without approval. A later phase adds an always-on desktop voice assistant
-(wake word "hey secptile" / "hey secp").
+(wake word "secptile").
 
 ## Tech stack (do not drift from this)
 
