@@ -22,6 +22,10 @@ To look something up in the app, choose an action:
 {"action":"updates"}  pending system updates
 {"action":"system"}  CPU, memory, battery
 {"action":"time"}  current time and date
+{"action":"kartabya_messages"}  new team messages in Kartabya
+{"action":"kartabya_mentions"}  mentions of the owner in Kartabya
+{"action":"kartabya_tasks"}  the owner's Kartabya tasks
+{"action":"kartabya_stats"}  the owner's Kartabya stats
 {"action":"open","section":"chat|tea|clock|tracker|mail|feedback|updates|about"}  open a page
 {"action":"start_blog"}  ONLY when the owner asks to write a blog or LinkedIn post
 
@@ -51,6 +55,10 @@ const replySchema = z.discriminatedUnion("action", [
       "updates",
       "system",
       "time",
+      "kartabya_messages",
+      "kartabya_mentions",
+      "kartabya_tasks",
+      "kartabya_stats",
       "start_blog",
     ]),
   }),
