@@ -58,6 +58,7 @@ without approval. A later phase adds an always-on desktop voice assistant
   text never goes to a model. A blog starts only when asked for. Sending, publishing and
   approving stay a click on their own pages.
 - **Desktop widget:** `daemon/widget/` (Quickshell, wallpaper layer) animates the owner's Braille art from `/api/assistant/status`. The art stays in `~/.secptile/widget/`, not this repo.
+- **Kartabya:** `src/lib/kartabya/` talks to `skills.arcademia.app/mcp` directly (OAuth; encrypted tokens in `~/.secptile/kartabya.json`). The server has no stats tool, so dashboard numbers aren't available.
 - Not yet started: Phase 8 (polish, accessibility).
 
 ## What to do next (in this order)
