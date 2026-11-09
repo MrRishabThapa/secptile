@@ -9,10 +9,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-# Filler stripped before matching, so "hey secptile, open system" still works.
-_FILLER = re.compile(
-    r"^(hey\s+secp|hey\s+secptile)\b[,\s]*", re.IGNORECASE
-)
+# Filler stripped before matching, so "secptile, open system" still works.
+_FILLER = re.compile(r"^(hey\s+)?secptile\b[,.\s]*", re.IGNORECASE)
 
 OPEN = ("open system", "open secptile", "show system", "show secptile")
 CLOSE = ("close system", "close secptile", "hide system")
