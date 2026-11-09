@@ -14,9 +14,10 @@ import wave
 import httpx
 import numpy as np
 
-# Biases whisper toward the brand words. Do not add "hey" here: a prompt like
-# "Hey Secp" made it hear "hey there, pass the salt" as "Hey Secp, pass...".
-WAKE_PROMPT = "Secp. Secptile."
+# Teaches whisper the word. This wording was picked by testing: "Secp. Secptile."
+# made it hear "september" and "subtle" as the wake word, and no prompt at all
+# made it miss the real word. Re-test false wakes before changing it.
+WAKE_PROMPT = "Talking to Secptile."
 NON_SPEECH = re.compile(r"[\[(][^\])]*[\])]")
 
 
