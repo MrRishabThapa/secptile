@@ -120,5 +120,5 @@ if ! grep -q '^DASHSCOPE_API_KEY=.' "$REPO_DIR/.env.local" 2>/dev/null; then
     echo "  systemctl --user restart secptile-app.service"
 fi
 echo "Watch logs: journalctl --user -u secptile-daemon -f"
-echo "Mute hotkey (Hyprland ~/.config/hypr/hyprland.conf):"
-echo "  bind = SUPER SHIFT, M, exec, secptile-mute"
+echo "Mute hotkey (Hyprland 0.56 Lua config):"
+echo '  hl.bind("SUPER + SHIFT + M", hl.dsp.exec_cmd("secptile-mute"))'
