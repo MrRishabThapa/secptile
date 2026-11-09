@@ -349,6 +349,8 @@ class Assistant:
             )
             endpointer = self._new_wake_endpointer()
             match = wake.match_wake(heard)
+            if self.cfg.wake_log_heard:
+                LOG.info("wake check heard %r (match: %s)", heard, match is not None)
             if match is not None:
                 await self.on_wake(match.remainder, clip_frames if result == "max" else None)
                 self.mic.drain()
@@ -419,4 +421,5 @@ async def main() -> None:
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+    logging.getLogger("httpx").setLevel(logging.WARNING)  # polls several times a second
     asyncio.run(main())
